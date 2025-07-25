@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link";
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,11 +16,14 @@ import { CircleUserRound, LifeBuoy, LogOut, Settings } from "lucide-react"
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 py-2">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:px-6">
       <SidebarTrigger className="md:hidden" />
       <div className="flex-1">
-        <h1 className="text-xl font-semibold">Dashboard</h1>
+        {/* Can add breadcrumbs here */}
       </div>
+      <Button variant="outline" asChild>
+        <Link href="/">Back to Landing</Link>
+      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -28,7 +32,7 @@ export function Header() {
             className="overflow-hidden rounded-full"
           >
             <Avatar>
-              <AvatarImage src="https://placehold.co/32x32" alt="User Avatar" />
+              <AvatarImage data-ai-hint="user avatar" src="https://placehold.co/32x32" alt="User Avatar" />
               <AvatarFallback>U</AvatarFallback>
             </Avatar>
           </Button>
