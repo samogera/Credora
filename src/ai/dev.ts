@@ -3,3 +3,4 @@ config();
 
 import '@/ai/flows/generate-synthetic-data.ts';
 import '@/ai/flows/explain-risk-factors.ts';
+import '@/ai/flows/get-loan-recommendations.ts';

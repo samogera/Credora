@@ -1,32 +1,25 @@
-import { SidebarProvider, Sidebar, SidebarInset } from "@/components/ui/sidebar";
-import { SidebarNav } from "@/components/sidebar-nav";
-import { Header } from "@/components/header";
 import { CreditScore } from "@/components/credit-score";
 import { DataSources } from "@/components/data-sources";
 import { RiskFactors } from "@/components/risk-factors";
 import { PartnerView } from "@/components/partner-view";
+import { LoanRecommendations } from "@/components/loan-recommendations";
+import { ApplicationStatus } from "@/components/application-status";
 
 export default function Dashboard() {
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarNav />
-      </Sidebar>
-      <SidebarInset>
-        <div className="flex min-h-screen w-full flex-col bg-muted/40">
-          <Header />
-          <main className="flex-1 p-4 sm:p-6 lg:p-8">
-            <div className="grid gap-6 lg:grid-cols-3">
-              <CreditScore />
-              <div className="flex flex-col gap-6">
-                <DataSources />
-                <PartnerView />
-              </div>
-              <RiskFactors />
-            </div>
-          </main>
+    <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-3">
+            <CreditScore />
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+        <div className="lg:col-span-2 space-y-6">
+            <LoanRecommendations />
+            <ApplicationStatus />
+        </div>
+        <div className="space-y-6">
+            <DataSources />
+            <RiskFactors />
+            <PartnerView />
+        </div>
+    </div>
   );
 }

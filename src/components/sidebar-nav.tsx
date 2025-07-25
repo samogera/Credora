@@ -1,5 +1,7 @@
 "use client"
 
+import { usePathname } from 'next/navigation'
+import Link from 'next/link'
 import {
   SidebarHeader,
   SidebarContent,
@@ -15,10 +17,21 @@ import {
   Users,
   Settings,
   LogOut,
+  Building,
 } from "lucide-react"
 import { Button } from "./ui/button"
 
+const menuItems = [
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/dashboard/data-sources', label: 'Data Sources', icon: Database },
+    { href: '/dashboard/partners', label: 'Partners', icon: Users },
+    { href: '/dashboard/partner-admin', label: 'Partner Admin', icon: Building },
+    { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+]
+
 export function SidebarNav() {
+  const pathname = usePathname()
+
   return (
     <>
       <SidebarHeader>
@@ -29,30 +42,16 @@ export function SidebarNav() {
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton isActive>
-              <LayoutDashboard />
-              Dashboard
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton>
-              <Database />
-              Data Sources
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton>
-              <Users />
-              Partners
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton>
-              <Settings />
-              Settings
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {menuItems.map(item => (
+            <SidebarMenuItem key={item.href}>
+                <Link href={item.href} passHref>
+                    <SidebarMenuButton isActive={pathname === item.href}>
+                        <item.icon />
+                        {item.label}
+                    </SidebarMenuButton>
+                </Link>
+            </SidebarMenuItem>
+          ))}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-2">
