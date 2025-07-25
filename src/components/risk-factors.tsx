@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -9,7 +10,11 @@ import { Lightbulb, TrendingUp, Bot } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { explainRiskFactors, ExplainRiskFactorsInput } from '@/ai/flows/explain-risk-factors';
 
-export function RiskFactors() {
+interface RiskFactorsProps {
+    score: number;
+}
+
+export function RiskFactors({ score }: RiskFactorsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [aiResult, setAiResult] = useState<{ explanation: string; improvementSuggestions: string } | null>(null);
 
@@ -18,7 +23,7 @@ export function RiskFactors() {
     setAiResult(null);
     
     const input: ExplainRiskFactorsInput = {
-        score: 785, // Static for demo
+        score: score,
         stellarActivity: "Frequent transactions, holds various assets.", // Static for demo
         offChainSignals: "Consistent utility payments on time." // Static for demo
     }

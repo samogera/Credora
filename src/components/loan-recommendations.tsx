@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -18,7 +19,11 @@ const allLoanProducts = [
   { partnerName: "Anchor Finance", productName: "Small Business Loan", interestRate: "7.5%", maxAmount: "50000", requirements: "Credit score above 650" },
 ];
 
-export function LoanRecommendations() {
+interface LoanRecommendationsProps {
+    score: number;
+}
+
+export function LoanRecommendations({ score }: LoanRecommendationsProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [recommendations, setRecommendations] = useState<LoanRecommendation[] | null>(null);
@@ -28,7 +33,7 @@ export function LoanRecommendations() {
         setError(null);
 
         const input: GetLoanRecommendationsInput = {
-            score: 785, // Using a static score for demonstration
+            score: score,
             loanProducts: allLoanProducts
         };
 
@@ -46,7 +51,7 @@ export function LoanRecommendations() {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [score]);
 
     useEffect(() => {
         handleGetRecommendations();
@@ -61,7 +66,7 @@ export function LoanRecommendations() {
                 <div className="flex justify-between items-start">
                     <div>
                         <CardTitle>Loan Recommendations</CardTitle>
-                        <CardDescription>AI-powered suggestions based on your credit score.</CardDescription>
+                        <CardDescription>AI-powered suggestions based on your credit score of <span className="text-primary font-bold">{score}</span>.</CardDescription>
                     </div>
                      <Button size="sm" onClick={handleGetRecommendations} disabled={isLoading}>
                         <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />

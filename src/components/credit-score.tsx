@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -30,8 +31,12 @@ const chartConfig = {
   },
 }
 
-export function CreditScore() {
-  const [score, setScore] = useState(785);
+interface CreditScoreProps {
+    score: number;
+    setScore: (score: number) => void;
+}
+
+export function CreditScore({ score, setScore }: CreditScoreProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const getRiskCategory = (currentScore: number) => {
