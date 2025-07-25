@@ -6,7 +6,6 @@ import { DataSources } from "@/components/data-sources";
 import { RiskFactors } from "@/components/risk-factors";
 import { PartnerView } from "@/components/partner-view";
 
-
 export default function Dashboard() {
   return (
     <SidebarProvider>
@@ -19,9 +18,11 @@ export default function Dashboard() {
           <main className="flex-1 p-4 sm:p-6 lg:p-8">
             <div className="grid gap-6 lg:grid-cols-3">
               <CreditScore />
-              <DataSources />
+              <div className="flex flex-col gap-6">
+                <DataSources />
+                <PartnerView />
+              </div>
               <RiskFactors />
-              <PartnerView />
             </div>
           </main>
         </div>

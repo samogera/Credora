@@ -109,7 +109,7 @@ export function CreditScore() {
                       cursor={false}
                       content={<ChartTooltipContent indicator="dot" />}
                     />
-                    <Bar dataKey="score" fill="var(--color-score)" radius={4} />
+                    <Bar dataKey="score" fill="var(--color-score)" radius={8} />
                 </BarChart>
             </ChartContainer>
         </div>

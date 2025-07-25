@@ -79,7 +79,7 @@ export default function LandingPage() {
                         </CardHeader>
                         <CardContent>
                            <CardDescription>Use your Credora score to access better rates from lending partners, dApps, and other financial services in the ecosystem.</CardDescription>
-                        </Content>
+                        </CardContent>
                     </Card>
                 </div>
             </div>
