@@ -32,10 +32,7 @@ export default function LandingPage() {
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Button size="lg" asChild className="w-full sm:w-auto">
-                <Link href="/login">Connect Wallet & Get Score</Link>
-              </Button>
-              <Button size="lg" variant="outline" asChild className="w-full sm:w-auto">
-                <Link href="/signup-partner">Become a Partner</Link>
+                <Link href="/signup">Connect Wallet & Get Score</Link>
               </Button>
             </div>
           </div>

@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { CircleUserRound, LifeBuoy, LogOut, Settings } from "lucide-react"
+import { CircleUserRound, LifeBuoy, LogOut, Settings, Home } from "lucide-react"
 
 export function Header() {
   return (
@@ -21,8 +21,11 @@ export function Header() {
       <div className="flex-1">
         {/* Can add breadcrumbs here */}
       </div>
-      <Button variant="outline" asChild>
-        <Link href="/">Back to Landing</Link>
+      <Button variant="outline" size="icon" asChild>
+        <Link href="/">
+          <Home className="h-4 w-4" />
+          <span className="sr-only">Home</span>
+        </Link>
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

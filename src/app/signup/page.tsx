@@ -55,15 +55,6 @@ export default function SignupPage() {
             Log In
           </Link>
         </p>
-         <p className="text-center text-sm text-muted-foreground">
-          Are you a lending partner?{" "}
-          <Link
-            href="/signup-partner"
-            className="font-medium text-primary hover:underline"
-          >
-            Sign up here
-          </Link>
-        </p>
       </div>
     </div>
   );
