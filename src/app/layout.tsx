@@ -27,7 +27,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${sourceCodePro.variable}`}>
-      <body className={`font-body antialiased`}>
+      <body className={`font-body antialiased`} suppressHydrationWarning>
         {children}
         <Toaster />
       </body>
