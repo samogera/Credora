@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { getLoanRecommendations, GetLoanRecommendationsInput, LoanRecommendation } from "@/ai/flows/get-loan-recommendations";
+import { getLoanRecommendations } from "@/ai/flows/get-loan-recommendations";
+import { GetLoanRecommendationsInput, LoanRecommendation } from "@/ai/schemas/loan-recommendations";
 import { Skeleton } from './ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle, Info } from 'lucide-react';
