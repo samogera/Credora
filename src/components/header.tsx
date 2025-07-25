@@ -1,0 +1,48 @@
+"use client"
+
+import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { CircleUserRound, LifeBuoy, LogOut, Settings } from "lucide-react"
+
+export function Header() {
+  return (
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 py-2">
+      <SidebarTrigger className="md:hidden" />
+      <div className="flex-1">
+        <h1 className="text-xl font-semibold">Dashboard</h1>
+      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            className="overflow-hidden rounded-full"
+          >
+            <Avatar>
+              <AvatarImage src="https://placehold.co/32x32" alt="User Avatar" />
+              <AvatarFallback>U</AvatarFallback>
+            </Avatar>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>My Account</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem><CircleUserRound className="mr-2" />Profile</DropdownMenuItem>
+          <DropdownMenuItem><Settings className="mr-2" />Settings</DropdownMenuItem>
+          <DropdownMenuItem><LifeBuoy className="mr-2" />Support</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem><LogOut className="mr-2" />Logout</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </header>
+  )
+}
