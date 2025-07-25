@@ -153,3 +153,28 @@ git clone https://github.com/your-org/credora.git
 cd credora
 npm install
 npm run dev
+```
+>Requires: *Node.js 18+, Stellar SDK, Soroban CLI, Freighter Wallet (for browser testing)*
+
+## 🤝 Contributing
+
+We welcome contributions to:
+
+- AI scoring models  
+- Soroban contract development  
+- Data integrations (utility APIs, mobile usage, etc.)  
+- UX feedback and accessibility improvements  
+
+Open a PR or issue — let’s build inclusive finance together.
+
+---
+
+## 📬 Contact & Links
+
+- Project Lead: **Samogera**  
+- Website: [credora.app](https://credora.app) *(placeholder)*  
+- Email: hello@credora.app  
+
+---
+
+> © 2025 Credora — *Built with purpose on Stellar*
