@@ -1,4 +1,4 @@
-import { SidebarProvider, Sidebar, SidebarInset } from "@/components/ui/sidebar";
+import { SidebarProvider, Sidebar, SidebarInset, SidebarRail } from "@/components/ui/sidebar";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { Header } from "@/components/header";
 
@@ -9,8 +9,9 @@ export default function DashboardLayout({
   }) {
   return (
     <SidebarProvider>
-      <Sidebar>
+      <Sidebar collapsible="icon">
         <SidebarNav />
+        <SidebarRail />
       </Sidebar>
       <SidebarInset>
         <div className="flex min-h-screen w-full flex-col bg-muted/40">

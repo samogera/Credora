@@ -21,16 +21,24 @@ import {
 } from "lucide-react"
 import { Button } from "./ui/button"
 
-const menuItems = [
+const userMenuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/dashboard/data-sources', label: 'Data Sources', icon: Database },
     { href: '/dashboard/partners', label: 'Partners', icon: Users },
-    { href: '/dashboard/partner-admin', label: 'Partner Admin', icon: Building },
     { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
 
+const partnerMenuItems = [
+    { href: '/dashboard/partner-admin', label: 'Loan Dashboard', icon: Building },
+    { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+]
+
+
 export function SidebarNav() {
   const pathname = usePathname()
+  const isPartnerView = pathname.startsWith('/dashboard/partner-admin');
+
+  const menuItems = isPartnerView ? partnerMenuItems : userMenuItems;
 
   return (
     <>

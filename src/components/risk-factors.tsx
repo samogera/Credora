@@ -7,21 +7,31 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Lightbulb, TrendingUp, Bot } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
-
-const explanationText = "Your high score is primarily driven by consistent on-chain activity and a strong history of regular transactions. Holding a diverse set of assets on the Stellar network also positively contributes. Off-chain signals from utility payments show a reliable payment history, further boosting your score.";
-const suggestionsText = "To further improve, consider increasing your transaction frequency to demonstrate more active financial management. You could also explore interacting with more dApps on the Stellar ecosystem. Maintaining your excellent utility payment record is key.";
+import { explainRiskFactors, ExplainRiskFactorsInput } from '@/ai/flows/explain-risk-factors';
 
 export function RiskFactors() {
   const [isLoading, setIsLoading] = useState(false);
-  const [aiResult, setAiResult] = useState<{ explanation: string; suggestions: string } | null>(null);
+  const [aiResult, setAiResult] = useState<{ explanation: string; improvementSuggestions: string } | null>(null);
 
-  const handleExplain = () => {
+  const handleExplain = async () => {
     setIsLoading(true);
     setAiResult(null);
-    setTimeout(() => {
-      setAiResult({ explanation: explanationText, suggestions: suggestionsText });
-      setIsLoading(false);
-    }, 2000);
+    
+    const input: ExplainRiskFactorsInput = {
+        score: 785, // Static for demo
+        stellarActivity: "Frequent transactions, holds various assets.", // Static for demo
+        offChainSignals: "Consistent utility payments on time." // Static for demo
+    }
+
+    try {
+        const result = await explainRiskFactors(input);
+        setAiResult(result);
+    } catch (error) {
+        console.error("Error explaining risk factors:", error);
+        // You could show a toast notification here
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   return (
@@ -55,7 +65,7 @@ export function RiskFactors() {
                 <Alert className="border-primary/50 text-primary-foreground [&>svg]:text-primary">
                     <TrendingUp className="h-4 w-4" />
                     <AlertTitle>Improvement Suggestions</AlertTitle>
-                    <AlertDescription>{aiResult.suggestions}</AlertDescription>
+                    <AlertDescription>{aiResult.improvementSuggestions}</AlertDescription>
                 </Alert>
             </div>
         )}
