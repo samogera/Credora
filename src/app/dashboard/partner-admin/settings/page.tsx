@@ -1,14 +1,37 @@
 
+"use client";
+
+import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { PlusCircle, Upload } from "lucide-react";
+import { PlusCircle, Upload, Image as ImageIcon } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 export default function PartnerSettingsPage() {
+    const [logoUrl, setLogoUrl] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setLogoUrl(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleUploadClick = () => {
+        fileInputRef.current?.click();
+    };
+
   return (
     <div className="space-y-6">
        <div>
@@ -94,10 +117,25 @@ export default function PartnerSettingsPage() {
                         </div>
                         <div className="space-y-1.5">
                             <Label>Company Logo</Label>
-                            <Button variant="outline" className="w-full">
-                                <Upload className="mr-2 h-4 w-4" />
-                                Upload Logo
-                            </Button>
+                             <div className="flex items-center gap-4">
+                                <Avatar className="h-16 w-16 rounded-md">
+                                    {logoUrl ? <Image src={logoUrl} alt="Company Logo" layout="fill" objectFit="cover" className="rounded-md" /> :
+                                    <AvatarFallback className="rounded-md">
+                                        <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                                    </AvatarFallback>}
+                                </Avatar>
+                                <Button variant="outline" onClick={handleUploadClick}>
+                                    <Upload className="mr-2 h-4 w-4" />
+                                    Upload Logo
+                                </Button>
+                                <Input 
+                                    type="file" 
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept="image/png, image/jpeg, image/gif"
+                                    onChange={handleLogoChange}
+                                 />
+                            </div>
                         </div>
                          <Button className="w-full">Save Profile</Button>
                     </CardContent>
@@ -125,11 +163,17 @@ export default function PartnerSettingsPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                          <div className="flex items-center justify-between rounded-lg border p-3">
-                            <p className="text-sm font-medium">New Applications</p>
+                            <div>
+                               <p className="text-sm font-medium">New Applications</p>
+                               <p className="text-xs text-muted-foreground">Get notified of new loan requests.</p>
+                            </div>
                             <Switch defaultChecked />
                         </div>
                          <div className="flex items-center justify-between rounded-lg border p-3">
-                            <p className="text-sm font-medium">Weekly Summary</p>
+                            <div>
+                                <p className="text-sm font-medium">Weekly Summary</p>
+                                <p className="text-xs text-muted-foreground">Receive a report of your activity.</p>
+                            </div>
                             <Switch />
                         </div>
                     </CardContent>
