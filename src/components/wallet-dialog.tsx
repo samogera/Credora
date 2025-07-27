@@ -19,16 +19,10 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 
 const wallets = [
-    { name: "Freighter", logo: "https://placehold.co/28x28/1E1E1E/FFFFFF?text=FR", dataAiHint: "logo wallet" },
     { name: "Lobstr Wallet", logo: "https://placehold.co/28x28/00ACFF/FFFFFF?text=L", dataAiHint: "logo" },
     { name: "Ledger Nano", logo: "https://placehold.co/28x28/222222/FFFFFF?text=LD", dataAiHint: "logo hardware" },
     { name: "Trust Wallet", logo: "https://placehold.co/28x28/3375BB/FFFFFF?text=T", dataAiHint: "logo wallet" },
-    { name: "Trezor", logo: "https://placehold.co/28x28/1B1B1B/FFFFFF?text=TR", dataAiHint: "logo hardware" },
-    { name: "xBull Wallet", logo: "https://placehold.co/28x28/D90000/FFFFFF?text=XB", dataAiHint: "logo bull" },
-    { name: "Solar Wallet", logo: "https://placehold.co/28x28/FFC700/000000?text=S", dataAiHint: "logo sun" },
-    { name: "Albedo", logo: "https://placehold.co/28x28/50A5F1/FFFFFF?text=A", dataAiHint: "logo" },
-    { name: "Rabet", logo: "https://placehold.co/28x28/3BADEB/FFFFFF?text=R", dataAiHint: "logo wallet" },
-    { name: "Custom address / other", logo: "/wallets/generic.svg", isCustom: true, dataAiHint: "logo custom" },
+    { name: "Custom address / other", isCustom: true, dataAiHint: "logo custom" },
 ];
 
 interface WalletDialogProps {
@@ -127,7 +121,7 @@ export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
                     className="h-14 flex items-center justify-start gap-4 px-4"
                     onClick={() => handleWalletClick(wallet.name, wallet.isCustom)}
                     >
-                    {wallet.isCustom ? <Wallet className="h-7 w-7 text-muted-foreground" /> : <Image src={wallet.logo} alt={wallet.name} width={28} height={28} data-ai-hint={wallet.dataAiHint} />}
+                    {wallet.isCustom ? <Wallet className="h-7 w-7 text-muted-foreground" /> : <Image src={wallet.logo!} alt={wallet.name} width={28} height={28} data-ai-hint={wallet.dataAiHint} />}
                     <span className="font-semibold text-base">{wallet.name}</span>
                     </Button>
                 ))}

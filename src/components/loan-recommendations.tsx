@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getLoanRecommendations } from "@/ai/flows/get-loan-recommendations";
@@ -11,20 +11,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle, Info, RefreshCw, XCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
-
-const allLoanProducts = [
-  { partnerName: "Stellar Lend", productName: "Ecosystem Grant Loan", interestRate: "3.5%", maxAmount: "5000", requirements: "Credit score above 750" },
-  { partnerName: "Stellar Lend", productName: "Stablecoin Personal Loan", interestRate: "5.0%", maxAmount: "10000", requirements: "Credit score above 700" },
-  { partnerName: "Aqua Finance", productName: "AQUA-Backed Loan", interestRate: "4.2%", maxAmount: "7500", requirements: "Credit score above 680" },
-  { partnerName: "Aqua Finance", productName: "Liquidity Provider Loan", interestRate: "6.1%", maxAmount: "25000", requirements: "Credit score above 720 and active liquidity provider" },
-  { partnerName: "Anchor Finance", productName: "Small Business Loan", interestRate: "7.5%", maxAmount: "50000", requirements: "Credit score above 650" },
-];
+import { UserContext } from '@/context/user-context';
 
 interface LoanRecommendationsProps {
     score: number;
 }
 
 export function LoanRecommendations({ score }: LoanRecommendationsProps) {
+    const { partners } = useContext(UserContext);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [recommendations, setRecommendations] = useState<LoanRecommendation[] | null>(null);
@@ -32,6 +26,22 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
     const handleGetRecommendations = useCallback(async () => {
         setIsLoading(true);
         setError(null);
+
+        const allLoanProducts = partners.flatMap(p => 
+            p.products.map(prod => ({
+                partnerName: p.name,
+                productName: prod.name,
+                interestRate: prod.rate,
+                maxAmount: prod.maxAmount.toString(),
+                requirements: prod.requirements || `Score > 600`, // Default requirement
+            }))
+        );
+
+        if (allLoanProducts.length === 0) {
+            setIsLoading(false);
+            setRecommendations([]);
+            return;
+        }
 
         const input: GetLoanRecommendationsInput = {
             score: score,
@@ -52,7 +62,7 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
         } finally {
             setIsLoading(false);
         }
-    }, [score]);
+    }, [score, partners]);
 
     useEffect(() => {
         handleGetRecommendations();

@@ -58,6 +58,7 @@ export type Application = {
     status: 'Pending' | 'Approved' | 'Denied';
     aiExplanation?: ExplainRiskFactorsOutput | null;
     isExplaining?: boolean;
+    createdAt: any;
 };
 
 export type Notification = {
@@ -75,13 +76,14 @@ interface UserContextType {
     user: User | null;
     partner: Partner | null;
     isPartner: boolean;
+    loading: boolean;
     logout: () => Promise<void>;
     partnerLogin: (email: string, pass: string) => Promise<void>;
     partnerSignup: (email: string, pass: string, name: string, website: string) => Promise<void>;
     avatarUrl: string | null;
     setAvatarUrl: (url: string) => void;
     applications: Application[];
-    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'score' | 'loan'> & { loan: Omit<Application['loan'], 'partnerId'>}) => Promise<void>;
+    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'score' | 'loan' | 'createdAt'> & { loan: Omit<Application['loan'], 'partnerId'>}) => Promise<void>;
     updateApplicationStatus: (id: string, status: 'Approved' | 'Denied') => void;
     partners: Partner[];
     partnerProfile: Omit<Partner, 'products' | 'description' | 'id'>;
@@ -101,6 +103,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [partner, setPartner] = useState<Partner | null>(null);
     const [isPartner, setIsPartner] = useState(false);
+    const [loading, setLoading] = useState(true);
     
     const [avatarUrl, setAvatarUrlState] = useState<string | null>(null);
     const [applications, setApplications] = useState<Application[]>([]);
@@ -130,12 +133,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     }, []);
 
-    useEffect(() => {
-        setupAnonymousUser();
-    }, [setupAnonymousUser]);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            setLoading(true);
             if (currentUser) {
                 setUser(currentUser);
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
@@ -146,20 +147,33 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 } else {
                     setIsPartner(false);
                     setPartner(null);
+                    if (currentUser.isAnonymous) {
+                         const userDocRef = doc(db, "users", currentUser.uid);
+                         const userDocSnap = await getDoc(userDocRef);
+                         if (!userDocSnap.exists()) {
+                            await setDoc(userDocRef, {
+                                displayName: `User #${currentUser.uid.substring(0, 4)}`,
+                                avatarUrl: null,
+                                createdAt: serverTimestamp()
+                            });
+                         }
+                    }
                 }
             } else {
                 setUser(null);
                 setIsPartner(false);
                 setPartner(null);
-                // Ensure there's always a logged-in user for reads
                 await setupAnonymousUser();
             }
+            setLoading(false);
         });
         return () => unsubscribe();
     }, [setupAnonymousUser]);
     
     // Listener for all data - requires authenticated user
     useEffect(() => {
+        if (loading) return;
+
         const unsubPartners = onSnapshot(collection(db, "partners"), async (snapshot) => {
             const partnerList: Partner[] = [];
             for (const pDoc of snapshot.docs) {
@@ -176,59 +190,74 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             setPartners(partnerList);
         }, (error) => console.error("Partner listener error: ", error));
 
+        let unsubUserApps: () => void = () => {};
+        let unsubUser: () => void = () => {};
+        let unsubPartnerProfile: () => void = () => {};
+        let unsubPartnerProducts: () => void = () => {};
+        let unsubPartnerApps: () => void = () => {};
+        let unsubLoanActivity: () => void = () => {};
+
+
         if (isPartner && partner) {
-            const unsubPartnerProfile = onSnapshot(doc(db, "partners", partner.id), (doc) => {
+             unsubPartnerProfile = onSnapshot(doc(db, "partners", partner.id), (doc) => {
                 if(doc.exists()){
                     const data = doc.data();
                     setPartnerProfileState({name: data.name, logo: data.logo, website: data.website});
                 }
             });
 
-            const unsubPartnerProducts = onSnapshot(collection(db, "partners", partner.id, "products"), (snapshot) => {
+             unsubPartnerProducts = onSnapshot(collection(db, "partners", partner.id, "products"), (snapshot) => {
                  setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
             });
             
              const partnerAppsQuery = query(collection(db, "applications"), where("loan.partnerId", "==", partner.id));
-             const unsubPartnerApps = onSnapshot(partnerAppsQuery, (snapshot) => {
-                 const appsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application));
-                 setApplications(appsData);
+             unsubPartnerApps = onSnapshot(partnerAppsQuery, async (snapshot) => {
+                const appPromises = snapshot.docs.map(async (d) => {
+                    const appData = d.data() as Omit<Application, 'id'>;
+                    const userSnap = await getDoc(doc(db, 'users', appData.userId));
+                    const userData = userSnap.data();
+                    return {
+                        id: d.id,
+                        ...appData,
+                        user: {
+                            displayName: userData?.displayName || 'Unknown User',
+                            avatarUrl: userData?.avatarUrl || null,
+                        }
+                    } as Application;
+                });
+                const appsData = await Promise.all(appPromises);
+                setApplications(appsData);
              }, (error) => console.error("Partner apps listener error: ", error));
              
-             const unsubLoanActivity = onSnapshot(collection(db, "loanActivity"), (snapshot) => {
+             unsubLoanActivity = onSnapshot(collection(db, "loanActivity"), (snapshot) => {
                 setLoanActivity(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt.toDate()}) as LoanActivityItem));
              }, (error) => console.error("Loan activity listener error: ", error));
 
 
-             return () => {
-                unsubPartners();
-                unsubPartnerProfile();
-                unsubPartnerProducts();
-                unsubPartnerApps();
-                unsubLoanActivity();
-             };
-
         } else if(user && !isPartner) {
             const userAppsQuery = query(collection(db, "applications"), where("userId", "==", user.uid));
-            const unsubUserApps = onSnapshot(userAppsQuery, (snapshot) => {
-                const appsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application));
+             unsubUserApps = onSnapshot(userAppsQuery, (snapshot) => {
+                const appsData = snapshot.docs.map(d => ({ id: d.id, ...d.data(), createdAt: d.data().createdAt.toDate() } as Application));
                 setApplications(appsData);
             }, (error) => console.error("User apps listener error: ", error));
             
-            const unsubUser = onSnapshot(doc(db, "users", user.uid), (doc) => {
+             unsubUser = onSnapshot(doc(db, "users", user.uid), (doc) => {
                 if (doc.exists()) {
                     setAvatarUrlState(doc.data().avatarUrl || null);
                 }
             });
-
-            return () => {
-                unsubPartners();
-                unsubUserApps();
-                unsubUser();
-            };
         }
 
-        return () => { unsubPartners(); }
-    }, [user, isPartner, partner]);
+        return () => { 
+            unsubPartners();
+            unsubUserApps();
+            unsubUser();
+            unsubPartnerProfile();
+            unsubPartnerProducts();
+            unsubPartnerApps();
+            unsubLoanActivity();
+        }
+    }, [user, isPartner, partner, loading]);
     
     // Notifications listener
     useEffect(() => {
@@ -264,7 +293,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     }
 
-    const addApplication = async (app: Omit<Application, 'id' | 'user' | 'userId' | 'score'>) => {
+    const addApplication = async (app: Omit<Application, 'id' | 'user' | 'userId' | 'score' | 'createdAt'>) => {
         if (!user || user.isAnonymous) {
             toast({ variant: 'destructive', title: 'Login Required', description: 'You must be logged in to apply.' });
             return;
@@ -348,7 +377,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const addNotification = async (notification: Omit<Notification, 'id' | 'timestamp'>) => {
-        await addDoc(collection(db, 'notifications'), { ...notification, timestamp: new Date() });
+        await addDoc(collection(db, 'notifications'), { ...notification, timestamp: serverTimestamp() });
     }
 
     const markNotificationsAsRead = async (role: 'user' | 'partner') => {
@@ -403,6 +432,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         user,
         partner,
         isPartner,
+        loading,
         logout,
         partnerLogin,
         partnerSignup,
