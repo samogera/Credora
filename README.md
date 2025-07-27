@@ -172,8 +172,8 @@ Open a PR or issue — let’s build inclusive finance together.
 ## 📬 Contact & Links
 
 - Project Lead: **Samogera**  
-- Website: [credora.app](https://credora.app) *(placeholder)*  
-- Email: hello@credora.app  
+- Website: [credora.app](https://credora-nine.vercel.app/) 
+- Email: targorasatoshi@gmail.com
 
 ---
 
