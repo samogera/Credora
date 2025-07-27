@@ -112,26 +112,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     
     const [partnerProducts, setPartnerProducts] = useState<LoanProduct[]>([]);
 
-     const setupAnonymousUser = useCallback(async () => {
-        if (!auth.currentUser) {
-            try {
-                const cred = await signInAnonymously(auth);
-                const userDocRef = doc(db, "users", cred.user.uid);
-                const userDocSnap = await getDoc(userDocRef);
-                if (!userDocSnap.exists()) {
-                    await setDoc(userDocRef, {
-                        displayName: `User #${cred.user.uid.substring(0, 4)}`,
-                        avatarUrl: null,
-                        createdAt: serverTimestamp()
-                    });
-                }
-            } catch (error) {
-                console.error("Anonymous sign-in failed: ", error);
-            }
-        }
-    }, []);
-
-
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setLoading(true);
@@ -395,37 +375,23 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
     
     const partnerSignup = async (email: string, pass: string, name: string, website: string) => {
-        try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-            const newPartner = {
-                name,
-                website,
-                logo: `https://placehold.co/40x40/111111/FFFFFF?text=${name.substring(0,2).toUpperCase()}`,
-                description: `A new lending partner in the Credora ecosystem.`,
-                createdAt: serverTimestamp()
-            };
-            await setDoc(doc(db, "partners", userCredential.user.uid), newPartner);
-            // onAuthStateChanged will handle the state updates.
-        } catch (error: any) {
-            console.error("Partner signup error:", error);
-            throw new Error(error.message || "Failed to create partner account.");
-        }
+        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+        const newPartner = {
+            name,
+            website,
+            logo: `https://placehold.co/40x40/111111/FFFFFF?text=${name.substring(0,2).toUpperCase()}`,
+            description: `A new lending partner in the Credora ecosystem.`,
+            createdAt: serverTimestamp()
+        };
+        await setDoc(doc(db, "partners", userCredential.user.uid), newPartner);
     }
     
     const partnerLogin = async (email: string, pass: string) => {
-        try {
-            await signInWithEmailAndPassword(auth, email, pass);
-            // onAuthStateChanged will handle the state updates
-        } catch (error: any) {
-            console.error("Partner login error:", error);
-            throw new Error(error.message || "Failed to log in.");
-        }
+        await signInWithEmailAndPassword(auth, email, pass);
     }
 
     const logout = async () => {
-        const wasPartner = isPartner;
         await signOut(auth);
-        // Reset all states
         setUser(null);
         setPartner(null);
         setIsPartner(false);
@@ -434,9 +400,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setLoanActivity([]);
         setPartnerProducts([]);
         setAvatarUrlState(null);
-
+        
         // After logging out, sign in an anonymous user for the public pages
-        await setupAnonymousUser();
+        try {
+            await signInAnonymously(auth);
+        } catch(e) {
+            console.error("Error signing in anonymously on logout:", e);
+        }
     };
 
     const contextValue = {

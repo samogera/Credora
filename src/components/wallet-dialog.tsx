@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -19,9 +18,9 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 
 const wallets = [
-    { name: "Lobstr", logo: "https://placehold.co/100x100/png?text=LOBSTR" },
-    { name: "Trust Wallet", logo: "https://placehold.co/100x100/png?text=TRUST" },
-    { name: "Freighter", logo: "https://placehold.co/100x100/png?text=FREIGHTER" },
+    { name: "Lobstr", logo: "https://www.kindpng.com/picc/m/355-3552768_lobstr-wallet-logo-hd-png-download.png" },
+    { name: "Trust Wallet", logo: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRrkZT1UKOFMSsrjqoygGqsKz3hzoahV3bOmQ&s" },
+    { name: "Freighter", logo: "https://pbs.twimg.com/media/Go037k3WwAAEUCC.jpg" },
     { name: "Custom address / other", isCustom: true, dataAiHint: "logo custom" },
 ];
 
@@ -121,7 +120,7 @@ export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
                     className="h-14 flex items-center justify-start gap-4 px-4"
                     onClick={() => handleWalletClick(wallet.name, wallet.isCustom)}
                     >
-                    {wallet.isCustom ? <Wallet className="h-7 w-7 text-muted-foreground" /> : <Image src={wallet.logo!} alt={wallet.name} width={28} height={28} data-ai-hint={wallet.dataAiHint || 'logo'} />}
+                    {wallet.isCustom ? <Wallet className="h-7 w-7 text-muted-foreground" /> : <Image src={wallet.logo!} alt={wallet.name} width={28} height={28} data-ai-hint={wallet.dataAiHint || 'logo'} className="object-contain" />}
                     <span className="font-semibold text-base">{wallet.name}</span>
                     </Button>
                 ))}

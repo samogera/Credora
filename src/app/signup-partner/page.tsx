@@ -42,7 +42,7 @@ export default function SignupPartnerPage() {
              toast({
                 variant: 'destructive',
                 title: 'Registration Failed',
-                description: 'An unexpected error occurred. Please try again.'
+                description: error.message || 'An unexpected error occurred. Please try again.'
             });
         } finally {
             setIsSubmitting(false);
