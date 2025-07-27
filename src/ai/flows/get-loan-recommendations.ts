@@ -35,7 +35,7 @@ Available Loan Products:
 - Partner: {{partnerName}}, Product: {{productName}}, Rate: {{interestRate}}, Max Amount: {{maxAmount}}, Requirements: {{requirements}}
 {{/each}}
 
-Analyze each product. For each one, set 'isRecommended' to true if the user's score meets the product's requirements. Provide a short 'reason' explaining why it is or isn't a good fit. Focus on the user's score and the product requirements in your reasoning. Return a recommendation object for every loan product provided.
+Analyze each product and create a recommendation object for every loan product provided. For each one, set 'isRecommended' to true if the user's score meets or exceeds the product's requirements. Provide a short 'reason' (max 20 words) explaining why it is or isn't a good fit. Focus on the user's score and the product requirements in your reasoning.
 `,
 });
 

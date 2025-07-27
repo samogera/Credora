@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from "next/link";
@@ -11,8 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { CircleUserRound, LifeBuoy, LogOut, Settings, Home } from "lucide-react"
+import { LifeBuoy, LogOut, Settings, CircleUserRound } from "lucide-react"
 
 export function Header() {
   return (
@@ -21,12 +21,6 @@ export function Header() {
       <div className="flex-1">
         {/* Can add breadcrumbs here */}
       </div>
-      <Button variant="outline" size="icon" asChild>
-        <Link href="/">
-          <Home className="h-4 w-4" />
-          <span className="sr-only">Home</span>
-        </Link>
-      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -34,18 +28,12 @@ export function Header() {
             size="icon"
             className="overflow-hidden rounded-full"
           >
-            <Avatar>
-              <AvatarImage data-ai-hint="user avatar" src="https://placehold.co/32x32" alt="User Avatar" />
-              <AvatarFallback>U</AvatarFallback>
-            </Avatar>
+            <CircleUserRound className="h-5 w-5" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>My Account</DropdownMenuLabel>
           <DropdownMenuSeparator />
-           <DropdownMenuItem asChild>
-              <Link href="/dashboard/settings"><CircleUserRound className="mr-2" />Profile</Link>
-           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/dashboard/settings"><Settings className="mr-2" />Settings</Link>
           </DropdownMenuItem>

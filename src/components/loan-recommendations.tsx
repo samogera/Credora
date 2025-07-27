@@ -10,6 +10,7 @@ import { Skeleton } from './ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle, Info, RefreshCw, XCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 const allLoanProducts = [
   { partnerName: "Stellar Lend", productName: "Ecosystem Grant Loan", interestRate: "3.5%", maxAmount: "5000", requirements: "Credit score above 750" },
@@ -65,8 +66,8 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
             <CardHeader>
                 <div className="flex justify-between items-start">
                     <div>
-                        <CardTitle>Loan Recommendations</CardTitle>
-                        <CardDescription>AI-powered suggestions based on your credit score of <span className="text-primary font-bold">{score}</span>.</CardDescription>
+                        <CardTitle>AI Loan Recommendations</CardTitle>
+                        <CardDescription>Suggestions for your credit score of <span className="text-accent font-bold">{score}</span>.</CardDescription>
                     </div>
                      <Button size="sm" onClick={handleGetRecommendations} disabled={isLoading}>
                         <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -91,15 +92,17 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                 {!isLoading && !error && recommendations && (
                     <div className="space-y-4">
                         {recommendedLoans.length > 0 && recommendedLoans.map((rec, index) => (
-                             <Alert key={index} className="border-primary/50 text-primary-foreground [&>svg]:text-primary">
+                             <Alert key={index} className="border-accent/50 text-foreground [&>svg]:text-accent">
                                 <CheckCircle className="h-4 w-4" />
-                                <AlertTitle>
+                                <AlertTitle className="text-accent">
                                     {rec.productName} from {rec.partnerName}
                                 </AlertTitle>
                                 <AlertDescription>
-                                    {rec.reason}
+                                    <p>{rec.reason}</p>
                                     <div className="flex justify-end mt-2">
-                                        <Button size="sm" variant="secondary" className="h-7">Learn More</Button>
+                                        <Button size="sm" variant="secondary" className="h-7" asChild>
+                                           <Link href="/dashboard/partners">Learn More</Link>
+                                        </Button>
                                     </div>
                                 </AlertDescription>
                             </Alert>
