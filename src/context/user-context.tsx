@@ -233,6 +233,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 return;
              }
              const userIds = [...new Set(appsData.map(app => app.userId))];
+             if (userIds.length === 0) {
+                 setApplications([]);
+                 return;
+             }
              const usersRef = collection(db, "users");
              const usersQuery = query(usersRef, where(documentId(), "in", userIds));
              const userSnapshots = await getDocs(usersQuery);
@@ -338,7 +342,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
            notifsToUpdate = notifications.filter(n => n.for === 'user' && n.userId === user.uid && !n.read);
        } else if (role === 'partner') {
            // Assuming partnerId is known, hardcoded 'partner-1' for now
-           notifsToUpdate = notifications.filter(n => n.for === 'partner' && n.userId === 'partner-1' && !n.read);
+           notifsToUpdate = notifications.filter(n => n.for === 'partner' && !n.read);
        }
 
        for (const n of notifsToUpdate) {
@@ -371,5 +375,3 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
-
-    

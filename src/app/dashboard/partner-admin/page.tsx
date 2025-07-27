@@ -65,20 +65,16 @@ export default function PartnerAdminPage() {
         setSelectedApplication(app);
         setIsProfileOpen(true);
         if (!app.aiExplanation) {
-          handleExplainRisk(app.id);
+          handleExplainRisk(app);
         }
     };
 
-    const handleExplainRisk = async (id: string) => {
-        const appToExplain = applications.find(app => app.id === id);
+    const handleExplainRisk = async (appToExplain: Application) => {
         if (!appToExplain) return;
 
         const updatedApp = { ...appToExplain, isExplaining: true };
         setSelectedApplication(updatedApp);
-        // Also update the main list to show loading state if the user closes and reopens the dialog
-        setApplications(apps => apps.map(a => a.id === id ? updatedApp : a));
-
-
+        
         const input: ExplainRiskFactorsInput = {
             score: appToExplain.score,
             stellarActivity: "Frequent transactions, holds various assets.",
@@ -89,14 +85,12 @@ export default function PartnerAdminPage() {
             const result = await explainRiskFactors(input);
             const finalApp = { ...updatedApp, aiExplanation: result, isExplaining: false };
             setSelectedApplication(finalApp);
-            setApplications(apps => apps.map(a => a.id === id ? finalApp : a));
-
+            // Optionally, you could update the main application list in context if you want this to persist across dialog openings
         } catch (error) {
             console.error("Error explaining risk factors:", error);
             toast({ variant: 'destructive', title: "AI Error", description: "Could not fetch AI risk explanation." });
             const errorApp = { ...updatedApp, isExplaining: false };
             setSelectedApplication(errorApp);
-            setApplications(apps => apps.map(a => a.id === id ? errorApp : a));
         }
     };
 
@@ -208,7 +202,7 @@ export default function PartnerAdminPage() {
                              <CardHeader className="pb-2">
                                  <CardTitle className="text-base flex items-center justify-between">
                                     <span>AI Risk Explanation</span>
-                                     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => selectedApplication && handleExplainRisk(selectedApplication.id)} disabled={selectedApplication?.isExplaining}>
+                                     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => selectedApplication && handleExplainRisk(selectedApplication)} disabled={selectedApplication?.isExplaining}>
                                         <Bot className={`h-4 w-4 ${selectedApplication?.isExplaining ? 'animate-pulse' : ''}`} />
                                     </Button>
                                  </CardTitle>
