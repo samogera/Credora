@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { LifeBuoy, LogOut, Settings, CircleUserRound } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 
 export function Header() {
   return (
@@ -28,7 +29,12 @@ export function Header() {
             size="icon"
             className="overflow-hidden rounded-full"
           >
-            <CircleUserRound className="h-5 w-5" />
+             <Avatar>
+                <AvatarImage src="https://placehold.co/32x32.png" alt="User Avatar" data-ai-hint="avatar" />
+                <AvatarFallback>
+                    <CircleUserRound />
+                </AvatarFallback>
+            </Avatar>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -37,7 +43,9 @@ export function Header() {
           <DropdownMenuItem asChild>
             <Link href="/dashboard/settings"><Settings className="mr-2" />Settings</Link>
           </DropdownMenuItem>
-          <DropdownMenuItem><LifeBuoy className="mr-2" />Support</DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard/support"><LifeBuoy className="mr-2" />Support</Link>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
            <DropdownMenuItem asChild>
               <Link href="/"><LogOut className="mr-2" />Logout</Link>
