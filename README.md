@@ -1,4 +1,4 @@
-# 🌿 Credora
+# Credora
 
 **Tagline:** *Reimagining creditworthiness for the world’s underserved.*
 
