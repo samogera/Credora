@@ -46,6 +46,9 @@ export function Header() {
           <DropdownMenuItem asChild>
             <Link href="/dashboard/settings"><Settings className="mr-2" />Settings</Link>
           </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard/support"><LifeBuoy className="mr-2" />Support</Link>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
            <DropdownMenuItem asChild>
               <Link href="/"><LogOut className="mr-2" />Logout</Link>
