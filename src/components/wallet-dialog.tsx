@@ -19,9 +19,9 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 
 const wallets = [
-    { name: "Lobstr Wallet", logo: "/wallets/lobstr.svg", dataAiHint: "logo" },
-    { name: "Ledger Nano", logo: "/wallets/ledger.svg", dataAiHint: "logo hardware" },
-    { name: "Trust Wallet", logo: "/wallets/trust.svg", dataAiHint: "logo wallet" },
+    { name: "Lobstr", logo: "https://placehold.co/100x100/png?text=LOBSTR" },
+    { name: "Trust Wallet", logo: "https://placehold.co/100x100/png?text=TRUST" },
+    { name: "Freighter", logo: "https://placehold.co/100x100/png?text=FREIGHTER" },
     { name: "Custom address / other", isCustom: true, dataAiHint: "logo custom" },
 ];
 
@@ -121,7 +121,7 @@ export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
                     className="h-14 flex items-center justify-start gap-4 px-4"
                     onClick={() => handleWalletClick(wallet.name, wallet.isCustom)}
                     >
-                    {wallet.isCustom ? <Wallet className="h-7 w-7 text-muted-foreground" /> : <Image src={wallet.logo!} alt={wallet.name} width={28} height={28} data-ai-hint={wallet.dataAiHint} />}
+                    {wallet.isCustom ? <Wallet className="h-7 w-7 text-muted-foreground" /> : <Image src={wallet.logo!} alt={wallet.name} width={28} height={28} data-ai-hint={wallet.dataAiHint || 'logo'} />}
                     <span className="font-semibold text-base">{wallet.name}</span>
                     </Button>
                 ))}

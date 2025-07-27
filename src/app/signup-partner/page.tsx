@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -14,35 +14,42 @@ import { UserContext } from "@/context/user-context";
 import { toast } from "@/hooks/use-toast";
 
 export default function SignupPartnerPage() {
-    const { partnerSignup } = useContext(UserContext);
+    const { partnerSignup, isPartner, loading: authLoading } = useContext(UserContext);
     const [companyName, setCompanyName] = useState("");
     const [website, setWebsite] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const router = useRouter();
+
+    useEffect(() => {
+        if (!authLoading && isPartner) {
+            router.push('/dashboard/partner-admin');
+        }
+    }, [isPartner, authLoading, router]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsLoading(true);
+        setIsSubmitting(true);
         try {
             await partnerSignup(email, password, companyName, website);
             toast({
                 title: "Registration Successful!",
                 description: "Your partner account has been created. You are now being redirected."
             });
-            router.push('/dashboard/partner-admin');
+            // The useEffect will handle the redirect
         } catch (error: any) {
              toast({
                 variant: 'destructive',
                 title: 'Registration Failed',
-                description: error.message || 'An unexpected error occurred.'
+                description: 'An unexpected error occurred. Please try again.'
             });
         } finally {
-            setIsLoading(false);
+            setIsSubmitting(false);
         }
     };
 
+    const isLoading = authLoading || isSubmitting;
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background py-12">
@@ -67,20 +74,20 @@ export default function SignupPartnerPage() {
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="company-name">Company Name</Label>
-                        <Input id="company-name" placeholder="Your Company, Inc." required value={companyName} onChange={e => setCompanyName(e.target.value)} />
+                        <Input id="company-name" placeholder="Your Company, Inc." required value={companyName} onChange={e => setCompanyName(e.target.value)} disabled={isLoading}/>
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="company-website">Company Website</Label>
-                        <Input id="company-website" placeholder="https://example.com" required value={website} onChange={e => setWebsite(e.target.value)} />
+                        <Input id="company-website" placeholder="https://example.com" required value={website} onChange={e => setWebsite(e.target.value)} disabled={isLoading}/>
                     </div>
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="contact-email">Contact Email</Label>
-                    <Input id="contact-email" type="email" placeholder="contact@yourcompany.com" required value={email} onChange={e => setEmail(e.target.value)} />
+                    <Input id="contact-email" type="email" placeholder="contact@yourcompany.com" required value={email} onChange={e => setEmail(e.target.value)} disabled={isLoading}/>
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
-                    <Input id="password" type="password" placeholder="••••••••" required value={password} onChange={e => setPassword(e.target.value)} />
+                    <Input id="password" type="password" placeholder="••••••••" required value={password} onChange={e => setPassword(e.target.value)} disabled={isLoading}/>
                 </div>
                 <Button className="w-full" type="submit" disabled={isLoading}>
                     {isLoading ? "Creating Account..." : "Create Partner Account"}

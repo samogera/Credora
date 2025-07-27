@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useContext }from "react";
+import { useState, useContext, useEffect }from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -15,11 +15,17 @@ import { UserContext } from "@/context/user-context";
 import { toast } from "@/hooks/use-toast";
 
 export default function LoginPartnerPage() {
-    const { partnerLogin } = useContext(UserContext);
+    const { partnerLogin, isPartner, loading: authLoading } = useContext(UserContext);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const router = useRouter();
+
+    useEffect(() => {
+        if (!authLoading && isPartner) {
+            router.push('/dashboard/partner-admin');
+        }
+    }, [isPartner, authLoading, router]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,21 +33,23 @@ export default function LoginPartnerPage() {
             toast({ variant: 'destructive', title: 'Missing fields', description: 'Please enter both email and password.' });
             return;
         }
-        setIsLoading(true);
+        setIsSubmitting(true);
         try {
             await partnerLogin(email, password);
+            // The useEffect will handle the redirect
             toast({ title: "Login Successful!" });
-            router.push('/dashboard/partner-admin');
         } catch (error: any) {
             toast({
                 variant: 'destructive',
                 title: 'Login Failed',
-                description: error.message || 'Please check your credentials and try again.'
+                description: 'Please check your credentials and try again.'
             });
         } finally {
-            setIsLoading(false);
+            setIsSubmitting(false);
         }
     }
+
+  const isLoading = authLoading || isSubmitting;
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
@@ -65,11 +73,11 @@ export default function LoginPartnerPage() {
             <CardContent className="space-y-4">
                  <div className="space-y-2">
                     <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" type="email" placeholder="partner@example.com" required value={email} onChange={e => setEmail(e.target.value)} />
+                    <Input id="email" type="email" placeholder="partner@example.com" required value={email} onChange={e => setEmail(e.target.value)} disabled={isLoading} />
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
-                    <Input id="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} />
+                    <Input id="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} disabled={isLoading} />
                 </div>
                  <Button className="w-full" type="submit" disabled={isLoading}>
                     {isLoading ? "Logging in..." : "Login"}

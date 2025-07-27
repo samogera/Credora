@@ -40,7 +40,7 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
 
         if (allLoanProducts.length === 0) {
             setIsLoading(false);
-            setResult({ recommendations: [] });
+            setResult({ recommendations: [], improvementSuggestion: "There are currently no loan products available from our partners. Please check back later!" });
             return;
         }
 
@@ -67,7 +67,7 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
 
     useEffect(() => {
         handleGetRecommendations();
-    }, [handleGetRecommendations]);
+    }, [handleGetRecommendations, score, partners]);
 
     const recommendedLoans = result?.recommendations?.filter(r => r.isRecommended) || [];
     const otherLoans = result?.recommendations?.filter(r => !r.isRecommended) || [];

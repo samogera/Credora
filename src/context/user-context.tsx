@@ -136,17 +136,18 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setLoading(true);
             if (currentUser) {
-                setUser(currentUser);
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
                 const partnerDocSnap = await getDoc(partnerDocRef);
 
                 if (partnerDocSnap.exists()) {
                     setIsPartner(true);
                     setPartner({ id: currentUser.uid, ...partnerDocSnap.data() } as Partner);
+                    setUser(currentUser);
                 } else {
                     setIsPartner(false);
                     setPartner(null);
-                    if (currentUser.isAnonymous) {
+                    setUser(currentUser); // Regular user or anonymous
+                     if (currentUser.isAnonymous) {
                          const userDocRef = doc(db, "users", currentUser.uid);
                          const userDocSnap = await getDoc(userDocRef);
                          if (!userDocSnap.exists()) {
@@ -159,19 +160,25 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     }
                 }
             } else {
-                setUser(null);
-                setIsPartner(false);
-                setPartner(null);
-                await setupAnonymousUser();
+                // No user logged in, sign in anonymously for public pages
+                try {
+                    const cred = await signInAnonymously(auth);
+                    setUser(cred.user);
+                } catch(e) {
+                    console.error("Error signing in anonymously on logout:", e);
+                } finally {
+                    setIsPartner(false);
+                    setPartner(null);
+                }
             }
             setLoading(false);
         });
         return () => unsubscribe();
-    }, [setupAnonymousUser]);
+    }, []);
     
     // Listener for all data - requires authenticated user
     useEffect(() => {
-        if (loading) return;
+        if (loading || !user) return;
 
         const unsubPartners = onSnapshot(collection(db, "partners"), async (snapshot) => {
             const partnerList: Partner[] = [];
@@ -398,10 +405,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 createdAt: serverTimestamp()
             };
             await setDoc(doc(db, "partners", userCredential.user.uid), newPartner);
-            // Manually update state to reflect new partner status immediately
-            setPartner({ id: userCredential.user.uid, ...newPartner, products: [] } as Partner);
-            setIsPartner(true);
-            setUser(userCredential.user);
+            // onAuthStateChanged will handle the state updates.
         } catch (error: any) {
             console.error("Partner signup error:", error);
             throw new Error(error.message || "Failed to create partner account.");
@@ -431,7 +435,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setPartnerProducts([]);
         setAvatarUrlState(null);
 
-        // After logging out a partner, sign in an anonymous user for the public pages
+        // After logging out, sign in an anonymous user for the public pages
         await setupAnonymousUser();
     };
 
