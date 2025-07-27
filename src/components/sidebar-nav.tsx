@@ -31,6 +31,7 @@ const userMenuItems = [
 const partnerMenuItems = [
     { href: '/dashboard/partner-admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/dashboard/partner-admin/analytics', label: 'Analytics', icon: BarChart3 },
+    { href: '/dashboard/partner-admin/settings', label: 'Settings', icon: Settings },
 ]
 
 
@@ -57,16 +58,6 @@ export function SidebarNav() {
                 </Link>
             </SidebarMenuItem>
           ))}
-           {isPartnerView && (
-             <SidebarMenuItem>
-                <Link href="/dashboard/partner-admin/settings" passHref>
-                    <SidebarMenuButton isActive={pathname === '/dashboard/partner-admin/settings'}>
-                        <Settings />
-                        Settings
-                    </SidebarMenuButton>
-                </Link>
-            </SidebarMenuItem>
-           )}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-2">

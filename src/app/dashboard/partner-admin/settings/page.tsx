@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { PlusCircle, Upload } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function PartnerSettingsPage() {
   return (
@@ -104,19 +105,20 @@ export default function PartnerSettingsPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>API & Webhooks</CardTitle>
-                        <CardDescription>Integrate with your own systems.</CardDescription>
+                        <CardTitle>Appearance</CardTitle>
+                        <CardDescription>Customize the look and feel of the application.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="api-key">API Key</Label>
-                            <div className="flex items-center gap-2">
-                                <Input id="api-key" defaultValue="cred_test_************************" readOnly />
-                                <Button variant="secondary" size="sm">Copy</Button>
+                    <CardContent>
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                            <div>
+                                <p className="font-medium">Theme</p>
+                                <p className="text-sm text-muted-foreground">Select a light, dark, or system theme.</p>
                             </div>
+                            <ThemeToggle />
                         </div>
                     </CardContent>
                 </Card>
+
                  <Card>
                     <CardHeader>
                         <CardTitle>Notifications</CardTitle>
