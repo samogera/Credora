@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Wallet } from "lucide-react";
 import { Logo } from "@/components/logo";
 
@@ -23,7 +21,7 @@ export default function SignupPage() {
         <Card>
           <CardHeader>
             <CardTitle>Sign Up</CardTitle>
-            <CardDescription>Connect a wallet or create a new one.</CardDescription>
+            <CardDescription>Connect a wallet to create your secure, decentralized identity.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button className="w-full font-semibold" size="lg" asChild>
@@ -31,17 +29,6 @@ export default function SignupPage() {
                 <Wallet className="mr-2 h-5 w-5" />
                 Connect with Freighter
               </Link>
-            </Button>
-            <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input id="email" type="email" placeholder="you@example.com" required />
-            </div>
-             <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" required />
-            </div>
-            <Button variant="secondary" className="w-full" asChild>
-                <Link href="/dashboard">Create Account</Link>
             </Button>
           </CardContent>
         </Card>
