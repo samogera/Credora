@@ -8,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -20,35 +19,16 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 
 const wallets = [
-    { name: "Albedo", logo: "https://placehold.co/28x28", "data-ai-hint": "albedo logo" },
-    { name: "Atomic Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "atomic wallet logo" },
-    { name: "Beans App", logo: "https://placehold.co/28x28", "data-ai-hint": "beans app logo" },
-    { name: "Coinomi", logo: "https://placehold.co/28x28", "data-ai-hint": "coinomi logo" },
-    { name: "D'CENT Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "dcent wallet logo" },
-    { name: "Decaf Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "decaf wallet logo" },
-    { name: "Ellipal", logo: "https://placehold.co/28x28", "data-ai-hint": "ellipal logo" },
-    { name: "Exodus", logo: "https://placehold.co/28x28", "data-ai-hint": "exodus logo" },
     { name: "Freighter", logo: "https://placehold.co/28x28", "data-ai-hint": "freighter logo" },
-    { name: "Green Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "green wallet logo" },
-    { name: "Guarda Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "guarda wallet logo" },
-    { name: "Klever Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "klever wallet logo" },
-    { name: "Ledger Nano", logo: "https://placehold.co/28x28", "data-ai-hint": "ledger nano logo" },
     { name: "Lobstr Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "lobstr logo" },
-    { name: "Math Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "math wallet logo" },
-    { name: "Mycelium", logo: "https://placehold.co/28x28", "data-ai-hint": "mycelium logo" },
-    { name: "Rabet", logo: "https://placehold.co/28x28", "data-ai-hint": "rabet logo" },
-    { name: "Saza Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "saza wallet logo" },
-    { name: "Solar Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "solar wallet logo" },
-    { name: "Stellar Account Viewer", logo: "https://placehold.co/28x28", "data-ai-hint": "stellar logo" },
-    { name: "Stellar Laboratory", logo: "https://placehold.co/28x28", "data-ai-hint": "stellar logo" },
-    { name: "StellarTerm", logo: "https://placehold.co/28x28", "data-ai-hint": "stellarterm logo" },
-    { name: "StormGain Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "stormgain logo" },
-    { name: "Stronghold Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "stronghold logo" },
-    { name: "TokenPocket", logo: "https://placehold.co/28x28", "data-ai-hint": "tokenpocket logo" },
-    { name: "Trezor Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "trezor logo" },
-    { name: "Trust Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "trust wallet logo" },
-    { name: "Vibrant Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "vibrant wallet logo" },
     { name: "xBull Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "xbull logo" },
+    { name: "Albedo", logo: "https://placehold.co/28x28", "data-ai-hint": "albedo logo" },
+    { name: "Ledger Nano", logo: "https://placehold.co/28x28", "data-ai-hint": "ledger nano logo" },
+    { name: "Trezor Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "trezor logo" },
+    { name: "Solar Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "solar wallet logo" },
+    { name: "StellarTerm", logo: "https://placehold.co/28x28", "data-ai-hint": "stellarterm logo" },
+    { name: "Trust Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "trust wallet logo" },
+    { name: "Exodus", logo: "https://placehold.co/28x28", "data-ai-hint": "exodus logo" },
     { name: "Custom / None of the Above", logo: "/wallets/generic.svg", isCustom: true },
 ].sort((a, b) => {
     if (a.isCustom) return 1;
