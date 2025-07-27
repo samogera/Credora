@@ -89,12 +89,12 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-muted-foreground text-sm flex flex-col sm:flex-row justify-between items-center gap-4">
             <span>© {new Date().getFullYear()} Credora. All Rights Reserved.</span>
             <div className="flex gap-4">
-                <Link href="/login-partner" className="font-medium text-primary hover:underline">
-                    Partner Login
-                </Link>
-                 <Link href="/signup-partner" className="font-medium text-primary hover:underline">
-                    Become a Partner
-                </Link>
+                <Button variant="link" asChild className="p-0 h-auto font-medium text-primary hover:underline">
+                    <Link href="/login-partner">Partner Login</Link>
+                </Button>
+                 <Button variant="link" asChild className="p-0 h-auto font-medium text-primary hover:underline">
+                    <Link href="/signup-partner">Become a Partner</Link>
+                 </Button>
             </div>
         </div>
       </footer>

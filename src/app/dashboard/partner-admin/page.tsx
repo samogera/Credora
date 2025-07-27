@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState } from 'react';
@@ -106,7 +107,7 @@ export default function PartnerAdminPage() {
 
     return (
         <>
-            <div className="space-y-4">
+            <div className="space-y-4 mb-6">
                 <h1 className="text-3xl font-bold tracking-tight">Partner Dashboard</h1>
                 <p className="text-muted-foreground">Review incoming loan applications, manage active loans, and track your portfolio performance.</p>
             </div>
@@ -253,5 +254,3 @@ export default function PartnerAdminPage() {
         </>
     );
 }
-
-    

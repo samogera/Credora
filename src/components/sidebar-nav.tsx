@@ -17,7 +17,6 @@ import {
   Users,
   Settings,
   LogOut,
-  Building,
   BarChart3
 } from "lucide-react"
 import { Button } from "./ui/button"
