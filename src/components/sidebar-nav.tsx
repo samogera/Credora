@@ -30,7 +30,6 @@ const userMenuItems = [
 
 const partnerMenuItems = [
     { href: '/dashboard/partner-admin', label: 'Loan Dashboard', icon: Building },
-    { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
 
 
@@ -60,7 +59,9 @@ export function SidebarNav() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-2">
-         <Button variant="ghost"><LogOut className="mr-2" /> Logout</Button>
+         <Button variant="ghost" className="w-full justify-start" asChild>
+            <Link href="/"><LogOut className="mr-2 h-4 w-4" /> Logout</Link>
+         </Button>
       </SidebarFooter>
     </>
   )

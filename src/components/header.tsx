@@ -44,14 +44,14 @@ export function Header() {
           <DropdownMenuLabel>My Account</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Link href="/dashboard/settings"><Settings className="mr-2" />Settings</Link>
+            <Link href="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/dashboard/support"><LifeBuoy className="mr-2" />Support</Link>
+            <Link href="/dashboard/support"><LifeBuoy className="mr-2 h-4 w-4" />Support</Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
            <DropdownMenuItem asChild>
-              <Link href="/"><LogOut className="mr-2" />Logout</Link>
+              <Link href="/"><LogOut className="mr-2 h-4 w-4" />Logout</Link>
            </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
