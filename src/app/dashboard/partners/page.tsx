@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -15,6 +16,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
+import { Slider } from '@/components/ui/slider';
+import { cn } from '@/lib/utils';
 
 const partners = [
   {
@@ -22,8 +25,8 @@ const partners = [
     logo: "https://placehold.co/40x40",
     description: "Low-interest loans for Stellar ecosystem projects.",
     products: [
-      { id: "sl-001", name: "Ecosystem Grant Loan", rate: "3.5%", amount: "5,000" },
-      { id: "sl-002", name: "Stablecoin Personal Loan", rate: "5.0%", amount: "10,000" },
+      { id: "sl-001", name: "Ecosystem Grant Loan", rate: "3.5%", maxAmount: 5000 },
+      { id: "sl-002", name: "Stablecoin Personal Loan", rate: "5.0%", maxAmount: 10000 },
     ],
   },
   {
@@ -31,8 +34,8 @@ const partners = [
     logo: "https://placehold.co/40x40",
     description: "DeFi lending powered by the AQUA token.",
     products: [
-        { id: "af-001", name: "AQUA-Backed Loan", rate: "4.2%", amount: "7,500" },
-        { id: "af-002", name: "Liquidity Provider Loan", rate: "6.1%", amount: "25,000" },
+        { id: "af-001", name: "AQUA-Backed Loan", rate: "4.2%", maxAmount: 7500 },
+        { id: "af-002", name: "Liquidity Provider Loan", rate: "6.1%", maxAmount: 25000 },
     ],
   },
   {
@@ -40,7 +43,7 @@ const partners = [
     logo: "https://placehold.co/40x40",
     description: "Your anchor in the world of decentralized finance.",
      products: [
-        { id: "an-001", name: "Small Business Loan", rate: "7.5%", amount: "50,000" },
+        { id: "an-001", name: "Small Business Loan", rate: "7.5%", maxAmount: 50000 },
     ],
   },
 ];
@@ -49,15 +52,17 @@ type LoanProduct = {
   id: string;
   name: string;
   rate: string;
-  amount: string;
+  maxAmount: number;
 };
 
 export default function PartnersPage() {
     const [selectedLoan, setSelectedLoan] = useState<LoanProduct | null>(null);
     const [isApplying, setIsApplying] = useState(false);
+    const [customAmount, setCustomAmount] = useState(500);
 
     const handleApplyClick = (product: LoanProduct) => {
         setSelectedLoan(product);
+        setCustomAmount(Math.min(1000, product.maxAmount));
     };
 
     const handleApplicationSubmit = () => {
@@ -67,9 +72,13 @@ export default function PartnersPage() {
             setSelectedLoan(null);
             toast({
                 title: "Application Submitted!",
-                description: "Your loan application has been sent. You can track its status on your dashboard.",
+                description: `Your loan application for $${customAmount.toLocaleString()} has been sent. Track its status on your dashboard.`,
             });
         }, 1500);
+    }
+    
+    const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
     }
 
   return (
@@ -89,13 +98,13 @@ export default function PartnersPage() {
                 </div>
             </CardHeader>
             <CardContent className="flex-grow space-y-3">
-                <h4 className="font-semibold">Available Products</h4>
+                <h4 className="font-semibold text-sm">Available Products</h4>
                 <div className="space-y-2">
                     {partner.products.map((product) => (
                         <div key={product.id} className="flex items-center justify-between rounded-md border p-3">
                              <div>
                                 <p className="font-medium">{product.name}</p>
-                                <p className="text-sm text-muted-foreground">Up to ${product.amount} at {product.rate}</p>
+                                <p className="text-sm text-muted-foreground">Up to {formatCurrency(product.maxAmount)} at {product.rate}</p>
                             </div>
                             <Button size="sm" onClick={() => handleApplyClick(product)}>Apply</Button>
                         </div>
@@ -110,29 +119,44 @@ export default function PartnersPage() {
                 <DialogHeader>
                     <DialogTitle>Apply for {selectedLoan?.name}</DialogTitle>
                     <DialogDescription>
-                        Review the details and confirm your application. Your Credora score will be securely shared.
+                        Select your desired loan amount and confirm your application.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
+                <div className="space-y-6 py-4">
+                     <div className="space-y-4">
+                        <Label htmlFor="amount">Loan Amount: <span className="font-bold text-primary">{formatCurrency(customAmount)}</span></Label>
+                        <Slider
+                            id="amount"
+                            min={500}
+                            max={selectedLoan?.maxAmount || 500}
+                            step={100}
+                            value={[customAmount]}
+                            onValueChange={(value) => setCustomAmount(value[0])}
+                        />
+                         <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>$500</span>
+                            <span>{formatCurrency(selectedLoan?.maxAmount || 0)}</span>
+                        </div>
+                     </div>
                      <div className="grid grid-cols-2 gap-4">
-                         <div className="space-y-1">
-                            <Label>Loan Amount</Label>
-                            <Input defaultValue={`$${selectedLoan?.amount}`} disabled />
-                         </div>
                          <div className="space-y-1">
                             <Label>Interest Rate</Label>
                             <Input defaultValue={selectedLoan?.rate} disabled />
                          </div>
+                         <div className="space-y-1">
+                            <Label>Max Amount</Label>
+                            <Input defaultValue={formatCurrency(selectedLoan?.maxAmount || 0)} disabled />
+                         </div>
                     </div>
                     <div className="space-y-1">
-                        <Label htmlFor="purpose">Loan Purpose</Label>
+                        <Label htmlFor="purpose">Loan Purpose (Optional)</Label>
                         <Input id="purpose" placeholder="e.g., Business expansion, personal project" />
                     </div>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setSelectedLoan(null)} disabled={isApplying}>Cancel</Button>
                     <Button onClick={handleApplicationSubmit} disabled={isApplying}>
-                        {isApplying ? "Submitting..." : "Confirm & Apply"}
+                        {isApplying ? "Submitting..." : `Apply for ${formatCurrency(customAmount)}`}
                     </Button>
                 </DialogFooter>
             </DialogContent>
