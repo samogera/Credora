@@ -11,8 +11,8 @@ export default function LandingPage() {
         <Link href="/">
           <Logo />
         </Link>
-        <nav className="flex items-center gap-4">
-          <Button variant="ghost" asChild>
+        <nav className="flex items-center gap-2 sm:gap-4">
+          <Button variant="ghost" asChild className="hidden sm:inline-flex">
             <Link href="/login-partner">Partner Login</Link>
           </Button>
           <Button variant="ghost" asChild>
@@ -86,8 +86,16 @@ export default function LandingPage() {
         </section>
       </main>
       <footer className="bg-secondary/50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-muted-foreground text-sm">
-            © {new Date().getFullYear()} Credora. All Rights Reserved.
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-muted-foreground text-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+            <span>© {new Date().getFullYear()} Credora. All Rights Reserved.</span>
+            <div className="flex gap-4">
+                <Link href="/login-partner" className="font-medium text-primary hover:underline">
+                    Partner Login
+                </Link>
+                 <Link href="/signup-partner" className="font-medium text-primary hover:underline">
+                    Become a Partner
+                </Link>
+            </div>
         </div>
       </footer>
     </div>
