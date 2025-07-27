@@ -22,6 +22,10 @@ export default function LoginPartnerPage() {
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!email || !password) {
+            toast({ variant: 'destructive', title: 'Missing fields', description: 'Please enter both email and password.' });
+            return;
+        }
         setIsLoading(true);
         try {
             await partnerLogin(email, password);
