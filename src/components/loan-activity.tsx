@@ -25,18 +25,11 @@ const loanData = [
 ];
 
 export function LoanActivity() {
-    const getStatusVariant = (status: string) => {
+    const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
         if (status === 'Active') return 'default';
         if (status === 'Paid Off') return 'secondary';
         if (status === 'Delinquent') return 'destructive';
         return 'outline';
-    }
-
-    const getStatusColor = (status: string) => {
-        if (status === 'Active') return 'bg-blue-500';
-        if (status === 'Paid Off') return 'bg-green-500';
-        if (status === 'Delinquent') return 'bg-yellow-500';
-        return '';
     }
 
   return (
@@ -68,7 +61,11 @@ export function LoanActivity() {
                 <TableCell className="text-right text-green-600">${loan.repaid.toLocaleString()}</TableCell>
                 <TableCell className="text-right">${loan.interestAccrued.toLocaleString()}</TableCell>
                 <TableCell className="text-center">
-                    <Badge variant={getStatusVariant(loan.status)} className={getStatusColor(loan.status)}>
+                    <Badge variant={getStatusVariant(loan.status)} className={
+                        getStatusVariant(loan.status) === 'default' ? 'bg-blue-500' :
+                        getStatusVariant(loan.status) === 'secondary' ? 'bg-green-500' :
+                        getStatusVariant(loan.status) === 'destructive' ? 'bg-yellow-500' : ''
+                    }>
                         {loan.status}
                     </Badge>
                 </TableCell>
