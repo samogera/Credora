@@ -148,12 +148,32 @@ Without valid credit histories, millions are denied access to loans, entrepreneu
 
 ## 🧪 Running Locally
 
-```bash
-git clone https://github.com/your-org/credora.git
-cd credora
-npm install
-npm run dev
-```
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-org/credora.git
+   cd credora
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   - Create a new file named `.env` in the root of your project by copying the example file:
+     ```bash
+     cp .env.example .env
+     ```
+   - Open the `.env` file and add your Google AI (Gemini) API key. You can get one from [Google AI Studio](https://aistudio.google.com/app/apikey).
+     ```
+     GEMINI_API_KEY="YOUR_API_KEY_HERE"
+     ```
+
+4. **Run the development server**
+   ```bash
+   npm run dev
+   ```
+
 >Requires: *Node.js 18+, Stellar SDK, Soroban CLI, Freighter Wallet (for browser testing)*
 
 ## 🤝 Contributing
