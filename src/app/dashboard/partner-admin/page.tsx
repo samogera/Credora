@@ -27,27 +27,25 @@ import { UserContext, Application } from '@/context/user-context';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function PartnerAdminPage() {
-    const { avatarUrl, applications, updateApplicationStatus, addNotification } = useContext(UserContext);
+    const { applications, updateApplicationStatus, addNotification } = useContext(UserContext);
     const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
     const [isSigning, setIsSigning] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-    const handleDecision = (id: string, decision: 'Approved' | 'Denied') => {
-        updateApplicationStatus(id, decision);
-        const app = applications.find(a => a.id === id);
-        if (app) {
-            addNotification({
-                for: 'user',
-                type: decision === 'Approved' ? 'approval' : 'denial',
-                title: `Loan ${decision}`,
-                message: `Your application for the ${app.loan.name} has been ${decision.toLowerCase()}.`,
-                read: false,
-                timestamp: new Date(),
-            });
+    const handleDecision = (appToUpdate: Application, decision: 'Approved' | 'Denied') => {
+        updateApplicationStatus(appToUpdate.id, decision);
+        
+        addNotification({
+            for: 'user',
+            userId: appToUpdate.userId,
+            type: decision === 'Approved' ? 'approval' : 'denial',
+            title: `Loan ${decision}`,
+            message: `Your application for the ${appToUpdate.loan.name} for $${appToUpdate.amount.toLocaleString()} has been ${decision.toLowerCase()}.`,
+            read: false,
+        });
 
-            if (decision === 'Approved') {
-                setSelectedApplication(app);
-            }
+        if (decision === 'Approved') {
+            setSelectedApplication({...appToUpdate, status: 'Approved' });
         }
     };
     
@@ -133,7 +131,15 @@ export default function PartnerAdminPage() {
                             <TableBody>
                                 {pendingApplications.length > 0 ? pendingApplications.map(app => (
                                     <TableRow key={app.id}>
-                                        <TableCell className="font-medium">{app.user}</TableCell>
+                                        <TableCell className="font-medium flex items-center gap-2">
+                                            <Avatar className='h-8 w-8'>
+                                                <AvatarImage src={app.userAvatar || ''} alt={app.user} />
+                                                <AvatarFallback>
+                                                    <User />
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <span>{app.user}</span>
+                                        </TableCell>
                                         <TableCell className={`text-center font-bold text-lg ${getScoreColor(app.score)}`}>{app.score}</TableCell>
                                         <TableCell>{app.loan.name}</TableCell>
                                         <TableCell className="text-right">${app.amount.toLocaleString()}</TableCell>
@@ -146,8 +152,8 @@ export default function PartnerAdminPage() {
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuItem onClick={() => handleViewProfile(app)}>View Profile</DropdownMenuItem>
-                                                    <DropdownMenuItem className="text-green-600" onClick={() => handleDecision(app.id, 'Approved')}>Approve</DropdownMenuItem>
-                                                    <DropdownMenuItem className="text-red-600" onClick={() => handleDecision(app.id, 'Denied')}>Deny</DropdownMenuItem>
+                                                    <DropdownMenuItem className="text-green-600" onClick={() => handleDecision(app, 'Approved')}>Approve</DropdownMenuItem>
+                                                    <DropdownMenuItem className="text-red-600" onClick={() => handleDecision(app, 'Denied')}>Deny</DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </TableCell>
@@ -169,7 +175,7 @@ export default function PartnerAdminPage() {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                              <Avatar>
-                                <AvatarImage src={avatarUrl || ''} alt={selectedApplication?.user} />
+                                <AvatarImage src={selectedApplication?.userAvatar || ''} alt={selectedApplication?.user} />
                                 <AvatarFallback>
                                     <User />
                                 </AvatarFallback>
@@ -229,7 +235,7 @@ export default function PartnerAdminPage() {
                     </div>
                     <DialogFooter>
                          <Button variant="secondary" onClick={() => setIsProfileOpen(false)}>Close</Button>
-                         <Button className="bg-green-600 hover:bg-green-700" onClick={() => { setIsProfileOpen(false); handleDecision(selectedApplication!.id, 'Approved')}}>
+                         <Button className="bg-green-600 hover:bg-green-700" onClick={() => { setIsProfileOpen(false); handleDecision(selectedApplication!, 'Approved')}}>
                             <CheckCircle className="mr-2 h-4 w-4" /> Approve Loan
                          </Button>
                     </DialogFooter>

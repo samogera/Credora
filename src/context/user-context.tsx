@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { createContext, useState, ReactNode, Dispatch, SetStateAction, useEffect } from 'react';
@@ -43,6 +42,7 @@ export type Application = {
     status: 'Pending' | 'Approved' | 'Denied';
     aiExplanation?: ExplainRiskFactorsOutput | null;
     isExplaining?: boolean;
+    userAvatar?: string | null;
 };
 
 export type Notification = {
@@ -61,7 +61,7 @@ interface UserContextType {
     avatarUrl: string | null;
     setAvatarUrl: (url: string) => void;
     applications: Application[];
-    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId'>) => void;
+    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar'>) => void;
     updateApplicationStatus: (id: string, status: 'Approved' | 'Denied') => void;
     partners: Partner[];
     partnerProfile: Omit<Partner, 'products' | 'description' | 'id'>;
@@ -145,6 +145,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
+            if (currentUser) {
+                // Pre-warm user document
+                const userDocRef = doc(db, "users", currentUser.uid);
+                setDoc(userDocRef, { email: currentUser.email, displayName: currentUser.displayName || `User #${currentUser.uid.substring(0,4)}` }, { merge: true });
+            }
         });
         return () => unsubscribe();
     }, []);
@@ -160,13 +165,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const unsubscribeApps = onSnapshot(qApps, (snapshot) => {
             const userApps = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application));
             setApplications(userApps);
-        });
+        }, (error) => console.error("App listener error: ", error));
 
         const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid));
         const unsubscribeNotifs = onSnapshot(qNotifs, (snapshot) => {
             const userNotifs = snapshot.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp.toDate() } as Notification));
             setNotifications(userNotifs.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime()));
-        });
+        }, (error) => console.error("Notification listener error: ", error));
         
         const userDocRef = doc(db, "users", user.uid);
         const unsubscribeUser = onSnapshot(userDocRef, (doc) => {
@@ -197,7 +202,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 } as Partner;
             });
             Promise.all(partnerPromises).then(setPartners);
-        });
+        }, (error) => console.error("Partner listener error: ", error));
 
         return () => unsubscribePartners();
     }, [])
@@ -219,13 +224,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
          const unsubscribeApps = onSnapshot(qApps, (snapshot) => {
              const allApps = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application));
              setApplications(allApps);
-         });
+         }, (error) => console.error("Partner app listener error: ", error));
 
          const qNotifs = query(collection(db, "notifications"), where("for", "==", 'partner'));
          const unsubscribeNotifs = onSnapshot(qNotifs, (snapshot) => {
              const partnerNotifs = snapshot.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp.toDate() } as Notification));
              setNotifications(partnerNotifs.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime()));
-         });
+         }, (error) => console.error("Partner notif listener error: ", error));
 
 
          return () => {
@@ -255,9 +260,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     }
 
-    const addApplication = async (app: Omit<Application, 'id' | 'user' | 'userId'>) => {
+    const addApplication = async (app: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar'>) => {
         if (!user) return;
-        const newApp = { ...app, userId: user.uid, user: user.displayName || 'Anonymous User' };
+        const newApp = { 
+            ...app, 
+            userId: user.uid, 
+            user: user.displayName || `User #${user.uid.substring(0,4)}`,
+            userAvatar: avatarUrl
+        };
         await addDoc(collection(db, "applications"), newApp);
     };
 
@@ -296,10 +306,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const markNotificationsAsRead = async (role: 'user' | 'partner') => {
-       const q = query(collection(db, 'notifications'), where('for', '==', role), where('read', '==', false));
-       const snapshot = await getDocs(q);
-       snapshot.forEach(docSnap => {
-           updateDoc(doc(db, 'notifications', docSnap.id), { read: true });
+       const relevantNotifications = notifications.filter(n => n.for === role && !n.read);
+       relevantNotifications.forEach(n => {
+           updateDoc(doc(db, 'notifications', n.id), { read: true });
        });
     }
 

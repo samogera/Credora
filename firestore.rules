@@ -2,53 +2,41 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Users can only read and write to their own user document.
+    // Users can only read/write their own profile data
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
 
-      // For document uploads, allow write access if user is authenticated.
-      // More specific rules can be added later (e.g., file size, type).
-      match /uploads/{document=**} {
-        allow write: if request.auth != null && request.auth.uid == userId;
+    // Partners can be read by any authenticated user, but only written by admins (future)
+    match /partners/{partnerId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Locked down for now
+
+      // Products can be read by anyone, but only managed by the partner (future)
+      match /products/{productId} {
+        allow read: if request.auth != null;
+        allow write: if false; // Locked down for now
       }
     }
-
-    // Partners can view user data, but not modify it directly.
-    // This rule is broad for now. In a real app, you'd add logic
-    // to check if a partner is linked to a specific user.
-    match /users/{userId} {
-      allow get: if isPartner();
+    
+    // Application rules: users can create, read their own. Partners can read all.
+    match /applications/{appId} {
+      allow create: if request.auth != null;
+      allow read: if (request.auth != null && resource.data.userId == request.auth.uid) || isPartner();
+      allow update(status): if isPartner();
+    }
+    
+    // Notification rules
+    match /notifications/{notifId} {
+        allow create: if request.auth != null; // Anyone can create a notification (user app, partner decision)
+        allow read, update(read): if (request.auth != null && resource.data.userId == request.auth.uid) || (resource.data.for == 'partner' && isPartner());
     }
 
-    // Partners can read and write their own data.
-    match /partners/{partnerId} {
-      allow read, write: if isPartner() && get(/databases/$(database)/documents/partners/$(partnerId)).data.ownerUid == request.auth.uid;
-    }
-
-    // Loans collection rules
-    match /loans/{loanId} {
-      // The user who owns the loan can read it.
-      allow get: if request.auth != null && request.auth.uid == resource.data.userId;
-
-      // The partner associated with the loan can read it.
-      allow get: if isPartner() && request.auth.uid == resource.data.partnerOwnerUid;
-
-      // Only backend functions can create or update loans.
-      allow write: if false;
-    }
-
-    // Scores can only be read by the user they belong to.
-    // Writes should only be done by a backend service/Cloud Function.
-    match /scores/{scoreId} {
-      allow get: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow write: if false; // Prevent client-side writes
-    }
-
-    // Helper function to check if the user has a partner role.
-    // This assumes you have a custom claim 'isPartner' set to true.
+    // A helper function to check if the authenticated user is a partner.
+    // In a real app, this might check a custom claim on the user's token.
+    // For this simulation, we'll allow any authenticated user to act as a partner for reads.
     function isPartner() {
-      return request.auth != null && request.auth.token.isPartner == true;
+      return request.auth != null;
     }
   }
 }

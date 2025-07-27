@@ -18,11 +18,11 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { Slider } from '@/components/ui/slider';
-import { UserContext, LoanProduct } from '@/context/user-context';
+import { UserContext, LoanProduct, Application } from '@/context/user-context';
 
 
 export default function PartnersPage() {
-    const { partners, addApplication, addNotification } = useContext(UserContext);
+    const { partners, addApplication, addNotification, user, avatarUrl } = useContext(UserContext);
     const [selectedLoan, setSelectedLoan] = useState<LoanProduct & { partnerName: string } | null>(null);
     const [isApplying, setIsApplying] = useState(false);
     const [customAmount, setCustomAmount] = useState(500);
@@ -33,12 +33,10 @@ export default function PartnersPage() {
     };
 
     const handleApplicationSubmit = () => {
-        if (!selectedLoan) return;
+        if (!selectedLoan || !user) return;
         setIsApplying(true);
 
-        const newApplication = {
-            id: `app-${Date.now()}`,
-            user: 'Anonymous User #4B7A',
+        const newApplication: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar'> = {
             score: 785, // Dummy score
             loan: {
                 id: selectedLoan.id,
@@ -53,11 +51,11 @@ export default function PartnersPage() {
 
         addNotification({
             for: 'partner',
+            userId: 'partner-1', // Hardcoded partner ID for now
             type: 'new_application',
             title: 'New Application',
-            message: `A new loan application for $${customAmount.toLocaleString()} (${selectedLoan.name}) has been submitted.`,
+            message: `${user.displayName || 'A new user'} applied for $${customAmount.toLocaleString()} (${selectedLoan.name}).`,
             read: false,
-            timestamp: new Date(),
         })
 
         setTimeout(() => {
@@ -84,7 +82,7 @@ export default function PartnersPage() {
         {partners.map((partner) => (
             <Card key={partner.name} className="flex flex-col">
             <CardHeader className="flex flex-row items-center gap-4">
-                <Image src={partner.logo} alt={partner.name} width={40} height={40} className="rounded-full" data-ai-hint="logo" />
+                <Image src={partner.logo} alt={partner.name} width={40} height={40} className="rounded-md" data-ai-hint="logo" />
                 <div>
                 <CardTitle>{partner.name}</CardTitle>
                 <CardDescription>{partner.description}</CardDescription>
@@ -151,8 +149,8 @@ export default function PartnersPage() {
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setSelectedLoan(null)} disabled={isApplying}>Cancel</Button>
-                    <Button onClick={handleApplicationSubmit} disabled={isApplying}>
-                        {isApplying ? "Submitting..." : `Apply for ${formatCurrency(customAmount)}`}
+                    <Button onClick={handleApplicationSubmit} disabled={isApplying || !user}>
+                        {isApplying ? "Submitting..." : !user ? "Please log in" : `Apply for ${formatCurrency(customAmount)}`}
                     </Button>
                 </DialogFooter>
             </DialogContent>
