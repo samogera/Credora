@@ -19,22 +19,11 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 
 const wallets = [
-    { name: "Freighter", logo: "https://placehold.co/28x28/111111/FFFFFF?text=F" },
-    { name: "Lobstr Wallet", logo: "https://placehold.co/28x28/00ACFF/FFFFFF?text=L" },
-    { name: "xBull Wallet", logo: "https://placehold.co/28x28/FF4500/FFFFFF?text=XB" },
-    { name: "Albedo", logo: "https://placehold.co/28x28/000000/FFFFFF?text=A" },
-    { name: "Ledger Nano", logo: "https://placehold.co/28x28/222222/FFFFFF?text=LD" },
-    { name: "Trezor Wallet", logo: "https://placehold.co/28x28/888888/FFFFFF?text=T" },
-    { name: "Solar Wallet", logo: "https://placehold.co/28x28/FFD700/000000?text=S" },
-    { name: "StellarTerm", logo: "https://placehold.co/28x28/00BFFF/FFFFFF?text=ST" },
-    { name: "Trust Wallet", logo: "https://placehold.co/28x28/3375BB/FFFFFF?text=T" },
-    { name: "Exodus", logo: "https://placehold.co/28x28/9933FF/FFFFFF?text=E" },
-    { name: "Custom / None of the Above", logo: "/wallets/generic.svg", isCustom: true },
-].sort((a, b) => {
-    if (a.isCustom) return 1;
-    if (b.isCustom) return -1;
-    return a.name.localeCompare(b.name);
-});
+    { name: "Lobstr Wallet", logo: "https://placehold.co/28x28/00ACFF/FFFFFF?text=L", dataAiHint: "logo" },
+    { name: "Ledger Nano", logo: "https://placehold.co/28x28/222222/FFFFFF?text=LD", dataAiHint: "logo hardware" },
+    { name: "Trust Wallet", logo: "https://placehold.co/28x28/3375BB/FFFFFF?text=T", dataAiHint: "logo wallet" },
+    { name: "Custom address / other", logo: "/wallets/generic.svg", isCustom: true, dataAiHint: "logo custom" },
+];
 
 interface WalletDialogProps {
   open: boolean;
@@ -56,7 +45,7 @@ export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
 
   const handleConnect = async (walletName: string) => {
     let toastDescription = `Please approve the connection in your ${walletName} wallet.`;
-    if (walletName.toLowerCase().includes('ledger') || walletName.toLowerCase().includes('trezor')) {
+    if (walletName.toLowerCase().includes('ledger')) {
         toastDescription = `Please connect and unlock your ${walletName} device.`;
     } else if (walletName.toLowerCase().includes('custom')) {
         if (!publicKey.trim().startsWith('G') || publicKey.trim().length !== 56) {
@@ -123,7 +112,7 @@ export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
                  <Button variant="outline" className="w-full" onClick={() => setShowCustomInput(false)}>Back to Wallet List</Button>
             </div>
         ) : (
-            <ScrollArea className="h-96 pr-4">
+            <ScrollArea className="h-auto pr-4">
                 <div className="grid grid-cols-1 gap-2 py-4">
                 {wallets.map((wallet) => (
                     <Button
@@ -132,7 +121,7 @@ export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
                     className="h-14 flex items-center justify-start gap-4 px-4"
                     onClick={() => handleWalletClick(wallet.name, wallet.isCustom)}
                     >
-                    {wallet.isCustom ? <Wallet className="h-6 w-6 text-muted-foreground" /> : <Image src={wallet.logo} alt={wallet.name} width={28} height={28} data-ai-hint="logo" />}
+                    {wallet.isCustom ? <Wallet className="h-6 w-6 text-muted-foreground" /> : <Image src={wallet.logo} alt={wallet.name} width={28} height={28} data-ai-hint={wallet.dataAiHint} />}
                     <span className="font-semibold">{wallet.name}</span>
                     </Button>
                 ))}
