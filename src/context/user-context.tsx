@@ -1,10 +1,11 @@
 
+
 "use client";
 
 import { createContext, useState, ReactNode, Dispatch, SetStateAction, useEffect } from 'react';
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, storage, auth } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, orderBy, documentId } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
@@ -45,7 +46,6 @@ export type Application = {
     status: 'Pending' | 'Approved' | 'Denied';
     aiExplanation?: ExplainRiskFactorsOutput | null;
     isExplaining?: boolean;
-    userAvatar?: string | null;
 };
 
 export type Notification = {
@@ -64,7 +64,7 @@ interface UserContextType {
     avatarUrl: string | null;
     setAvatarUrl: (url: string) => void;
     applications: Application[];
-    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar'>) => void;
+    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' >) => void;
     updateApplicationStatus: (id: string, status: 'Approved' | 'Denied') => void;
     partners: Partner[];
     partnerProfile: Omit<Partner, 'products' | 'description' | 'id'>;
@@ -173,7 +173,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid), orderBy("timestamp", "desc"));
         const unsubscribeNotifs = onSnapshot(qNotifs, (snapshot) => {
             const userNotifs = snapshot.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp.toDate() } as Notification));
-            setNotifications(userNotifs);
+            setNotifications(prev => [...prev.filter(n => n.for !== 'user'), ...userNotifs]);
         }, (error) => console.error("Notification listener error: ", error));
         
         const userDocRef = doc(db, "users", user.uid);
@@ -213,26 +213,47 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // This effect is for the logged-in partner view
     useEffect(() => {
          const partnerId = "partner-1"; // Hardcoded for this simulation
+
          const unsubProfile = onSnapshot(doc(db, "partners", partnerId), (doc) => {
             if(doc.exists()){
                 const data = doc.data();
                 setPartnerProfileState({name: data.name, logo: data.logo, website: data.website});
             }
          });
+
          const unsubProducts = onSnapshot(collection(db, "partners", partnerId, "products"), (snapshot) => {
              setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
          });
 
-         const qApps = query(collection(db, "applications")); // Partner sees all applications
-         const unsubscribeApps = onSnapshot(qApps, (snapshot) => {
-             const allApps = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application));
+         const qApps = query(collection(db, "applications"));
+         const unsubscribeApps = onSnapshot(qApps, async (snapshot) => {
+             const appsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Omit<Application, 'user'> & {user: any}));
+             if (appsData.length === 0) {
+                setApplications([]);
+                return;
+             }
+             const userIds = [...new Set(appsData.map(app => app.userId))];
+             const usersRef = collection(db, "users");
+             const usersQuery = query(usersRef, where(documentId(), "in", userIds));
+             const userSnapshots = await getDocs(usersQuery);
+             const usersData = Object.fromEntries(userSnapshots.docs.map(d => [d.id, d.data()]));
+             
+             const allApps = appsData.map(app => ({
+                ...app,
+                user: {
+                    displayName: usersData[app.userId]?.displayName || 'Unknown User',
+                    avatarUrl: usersData[app.userId]?.avatarUrl || null,
+                }
+             }));
+
              setApplications(allApps);
          }, (error) => console.error("Partner app listener error: ", error));
+
 
          const qNotifs = query(collection(db, "notifications"), where("for", "==", 'partner'), orderBy("timestamp", "desc"));
          const unsubscribeNotifs = onSnapshot(qNotifs, (snapshot) => {
              const partnerNotifs = snapshot.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp.toDate() } as Notification));
-             setNotifications(partnerNotifs);
+             setNotifications(prev => [...prev.filter(n => n.for !== 'partner'), ...partnerNotifs]);
          }, (error) => console.error("Partner notif listener error: ", error));
 
 
@@ -263,7 +284,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     }
 
-    const addApplication = async (app: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar'>) => {
+    const addApplication = async (app: Omit<Application, 'id' | 'user' | 'userId' >) => {
         if (!user) return;
         const newApp = { 
             ...app, 
@@ -314,9 +335,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const markNotificationsAsRead = async (role: 'user' | 'partner') => {
        let notifsToUpdate: Notification[] = [];
        if (role === 'user' && user) {
-           notifsToUpdate = notifications.filter(n => n.userId === user.uid && !n.read);
+           notifsToUpdate = notifications.filter(n => n.for === 'user' && n.userId === user.uid && !n.read);
        } else if (role === 'partner') {
-           notifsToUpdate = notifications.filter(n => n.for === 'partner' && !n.read);
+           // Assuming partnerId is known, hardcoded 'partner-1' for now
+           notifsToUpdate = notifications.filter(n => n.for === 'partner' && n.userId === 'partner-1' && !n.read);
        }
 
        for (const n of notifsToUpdate) {
@@ -349,3 +371,5 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
+
+    

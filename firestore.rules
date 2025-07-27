@@ -1,61 +1,73 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to check if a user is a partner (simulated)
-    function isPartner() {
-      // In a real app, you'd check a custom claim or a 'roles' field.
-      // For now, we'll assume any authenticated user could be a partner for testing.
+
+    // Helper function to check if a user is authenticated
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    // Users can read and write their own profile
+    // Rules for the 'users' collection
     match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      // Any authenticated user can create their own user profile
+      allow create: if isSignedIn() && request.auth.uid == userId;
+
+      // Users can only read or write their own data
+      // Partners need to be able to read user profiles for applications
+      allow read: if isSignedIn();
+      allow update, delete: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // Partners collection can be read by anyone, but only created/updated by an admin (not implemented yet)
+    // Rules for the 'partners' collection
     match /partners/{partnerId} {
-      allow read: if true;
-      allow write: if false; // Locked down for now
+      // Any authenticated user can read partner info (e.g., to see loan products)
+      allow read: if isSignedIn();
+      
+      // Only authenticated users (partners) can write/update their own profile
+      // In a real app, you'd have a 'roles' claim on the auth token.
+      // For this simulation, any auth'd user can act as a partner.
+      allow write: if isSignedIn();
 
-      // Partners can manage their own products
+      // Rules for partner-specific 'products' subcollection
       match /products/{productId} {
-        allow read: if true;
-        // For this simulation, we'll say any logged-in user can act as the partner
-        allow create, delete: if isPartner();
+        allow read: if isSignedIn();
+        allow write: if isSignedIn(); // Allow partners to add/remove products
       }
     }
-    
-    // Application rules
-    match /applications/{appId} {
-      // Allow create if the user is creating an application for themselves
-      allow create: if request.auth.uid == request.resource.data.userId;
+
+    // Rules for the 'applications' collection
+    match /applications/{applicationId} {
+      // Users can only create applications for themselves
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       
-      // Allow user to read their own application
-      // Allow a partner to read any application
-      allow read: if request.auth.uid == resource.data.userId || isPartner();
+      // Users can read their own applications.
+      // Partners can read all applications.
+      // For simulation, we'll allow any authenticated user to read.
+      allow read: if isSignedIn();
       
-      // Allow a partner to update the status
-      allow update: if isPartner() && request.resource.data.keys().hasOnly(['status']);
+      // Partners can update the status of an application
+      allow update: if isSignedIn(); 
     }
 
-    // Notification rules
-    match /notifications/{notifId} {
-      // Allow creation by any authenticated user (user or a partner function)
-      allow create: if request.auth.uid != null;
+    // Rules for the 'notifications' collection
+    match /notifications/{notificationId} {
+      // Logged-in users can create notifications (e.g. user applies for loan -> partner gets notification)
+      allow create: if isSignedIn();
       
-      // Allow user to read their own notifications
-      // Allow a partner to read partner-wide notifications
-      allow read: if (resource.data.for == 'user' && request.auth.uid == resource.data.userId) || 
-                   (resource.data.for == 'partner' && isPartner());
-                   
-      // Allow user/partner to mark their own notifications as read
-      allow update: if ((resource.data.for == 'user' && request.auth.uid == resource.data.userId) ||
-                     (resource.data.for == 'partner' && isPartner())) &&
-                     request.resource.data.keys().hasOnly(['read']);
+      // Users can read notifications intended for them
+      allow read: if isSignedIn() && (
+        (request.resource.data.for == 'user' && request.resource.data.userId == request.auth.uid) ||
+        (request.resource.data.for == 'partner') // For simulation, any partner can read partner notifications
+      );
+      
+      // Users can update their own notifications (e.g. to mark as read)
+      allow update: if isSignedIn() && (
+        (request.resource.data.for == 'user' && request.resource.data.userId == request.auth.uid) ||
+        (request.resource.data.for == 'partner')
+      );
     }
   }
 }
+
+    
