@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -64,12 +64,12 @@ export function CreditScore({ score, setScore }: CreditScoreProps) {
 
   return (
     <Card className="shadow-lg col-span-1 lg:col-span-2">
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div>
             <CardTitle className="text-xl font-bold">Your Credora Score</CardTitle>
             <CardDescription>A real-time measure of your financial health.</CardDescription>
         </div>
-         <Button onClick={handleRecalculate} disabled={isLoading} size="sm">
+         <Button onClick={handleRecalculate} disabled={isLoading} size="sm" className='w-full sm:w-auto'>
           <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           {isLoading ? 'Recalculating...' : 'Recalculate'}
         </Button>
@@ -84,8 +84,8 @@ export function CreditScore({ score, setScore }: CreditScoreProps) {
                 </>
             ) : (
                 <>
-                    <div className="text-7xl font-bold text-primary" style={{fontFamily: 'var(--font-source-code-pro)'}}>{score}</div>
-                    <div className="flex items-center gap-2">
+                    <div className="text-5xl sm:text-7xl font-bold text-primary" style={{fontFamily: 'var(--font-source-code-pro)'}}>{score}</div>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
                       <Badge className={`${riskCategory.color} hover:${riskCategory.color}`}>{riskCategory.text} Risk</Badge>
                       <Badge variant="outline">Confidence: 95%</Badge>
                     </div>

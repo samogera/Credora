@@ -79,16 +79,16 @@ export default function PartnerAdminPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {pendingApplications.map(app => (
-                            <div key={app.id} className="flex items-center justify-between rounded-lg border p-4">
+                            <div key={app.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-lg border p-4 gap-4">
                                 <div>
                                     <p className="font-semibold">{app.user} - <span className="text-primary">{app.score}</span></p>
                                     <p className="text-sm text-muted-foreground">{app.loan} for {app.amount}</p>
                                 </div>
-                                <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" className="border-green-500 text-green-500 hover:bg-green-500 hover:text-white" onClick={() => handleDecision(app.id, 'Approved')}>
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                    <Button size="sm" variant="outline" className="flex-1 border-green-500 text-green-500 hover:bg-green-500 hover:text-white" onClick={() => handleDecision(app.id, 'Approved')}>
                                         <CheckCircle className="mr-2 h-4 w-4" /> Approve
                                     </Button>
-                                    <Button size="sm" variant="outline" className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white" onClick={() => handleDecision(app.id, 'Denied')}>
+                                    <Button size="sm" variant="outline" className="flex-1 border-red-500 text-red-500 hover:bg-red-500 hover:text-white" onClick={() => handleDecision(app.id, 'Denied')}>
                                         <XCircle className="mr-2 h-4 w-4" /> Deny
                                     </Button>
                                 </div>

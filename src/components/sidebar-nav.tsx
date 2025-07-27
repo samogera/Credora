@@ -17,8 +17,7 @@ import {
   Users,
   Settings,
   LogOut,
-  Building,
-  LifeBuoy,
+  Building
 } from "lucide-react"
 import { Button } from "./ui/button"
 import { Logo } from './logo'
@@ -27,7 +26,6 @@ const userMenuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/dashboard/data-sources', label: 'Data Sources', icon: Database },
     { href: '/dashboard/partners', label: 'Partners', icon: Users },
-    { href: '/dashboard/support', label: 'Support', icon: LifeBuoy },
 ]
 
 const partnerMenuItems = [
