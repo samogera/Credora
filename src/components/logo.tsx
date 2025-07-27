@@ -1,21 +1,22 @@
 export const Logo = ({ className }: { className?: string }) => (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-        <circle cx="20" cy="20" r="18" stroke="url(#paint0_linear_1_2)" strokeWidth="4"/>
-        <path d="M22.5361 12.8787C23.5118 12.3913 24.6477 12.5516 25.4639 13.2529C26.2802 13.9542 26.6343 15.0559 26.353 16.097L22.2929 28.2929C21.8054 29.7686 20.2314 30.5118 18.7557 30.0243C17.28 29.5369 16.5369 27.9629 17.0243 26.4872L21.0845 14.2912C21.2246 13.8821 21.5604 13.5463 21.9695 13.4062L22.5361 12.8787Z" fill="url(#paint1_linear_1_2)"/>
-        <path d="M19.9289 10.3431C20.5562 9.71583 21.5025 9.62065 22.2281 10.1112L22.5361 12.8787L21.9695 13.4062C21.4029 13.9337 20.5562 14.1206 19.8305 13.71L15.7704 11.514C15.0447 11.1034 14.7719 10.1571 15.1825 9.43141C15.5931 8.70572 16.5394 8.43292 17.2651 8.84351L19.9289 10.3431Z" fill="url(#paint2_linear_1_2)"/>
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
         <defs>
-            <linearGradient id="paint0_linear_1_2" x1="2" y1="2" x2="38" y2="38" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#50D890"/>
-                <stop offset="1" stopColor="#47A0F4"/>
-            </linearGradient>
-            <linearGradient id="paint1_linear_1_2" x1="19.5" y1="12" x2="23" y2="29" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#50D890"/>
-                <stop offset="1" stopColor="#47A0F4"/>
-            </linearGradient>
-            <linearGradient id="paint2_linear_1_2" x1="15" y1="9" x2="22" y2="13" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#50D890"/>
-                <stop offset="1" stopColor="#47A0F4"/>
+            <linearGradient id="logo-gradient" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#2563EB" />
+                <stop offset="100%" stopColor="#4F46E5" />
             </linearGradient>
         </defs>
+        <circle cx="10" cy="10" r="7" stroke="url(#logo-gradient)" strokeWidth="1.5"/>
+        <path d="M11.5 12.5C11.5 13.3284 10.8284 14 10 14C9.17157 14 8.5 13.3284 8.5 12.5" stroke="url(#logo-gradient)" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M8.5 7.5C8.5 6.67157 9.17157 6 10 6C10.8284 6 11.5 6.67157 11.5 7.5" stroke="url(#logo-gradient)" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M10 6V14" stroke="url(#logo-gradient)" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M12 8H8" stroke="url(#logo-gradient)" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M12 12H8" stroke="url(#logo-gradient)" strokeWidth="1.5" strokeLinecap="round"/>
+        <circle cx="14" cy="14" r="7" stroke="url(#logo-gradient)" strokeWidth="1.5"/>
+        <path d="M15.5 16.5C15.5 17.3284 14.8284 18 14 18C13.1716 18 12.5 17.3284 12.5 16.5" stroke="url(#logo-gradient)" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M12.5 11.5C12.5 10.6716 13.1716 10 14 10C14.8284 10 15.5 10.6716 15.5 11.5" stroke="url(#logo-gradient)" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M14 10V18" stroke="url(#logo-gradient)" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M16 12H12" stroke="url(#logo-gradient)" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M16 16H12" stroke="url(#logo-gradient)" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
 )
