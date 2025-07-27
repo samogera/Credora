@@ -1,7 +1,7 @@
 
 "use client";
 
-import { createContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { createContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, storage, auth } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
@@ -145,7 +145,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     const cred = await signInAnonymously(auth);
                     setUser(cred.user);
                 } catch(e) {
-                    console.error("Error signing in anonymously on logout:", e);
+                    console.error("Error signing in anonymously:", e);
                 } finally {
                     setIsPartner(false);
                     setPartner(null);
@@ -178,7 +178,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         let unsubUserApps: () => void = () => {};
         let unsubUser: () => void = () => {};
-        let unsubPartnerProfile: () => void = () => {};
         let unsubPartnerProducts: () => void = () => {};
         let unsubPartnerApps: () => void = () => {};
         let unsubLoanActivity: () => void = () => {};
@@ -231,7 +230,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             unsubPartners();
             unsubUserApps();
             unsubUser();
-            unsubPartnerProfile();
             unsubPartnerProducts();
             unsubPartnerApps();
             unsubLoanActivity();
@@ -254,7 +252,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return () => unsubNotifs();
     }, [user, isPartner, partner]);
 
-    const setAvatarUrl = async (url: string) => {
+    const setAvatarUrl = useCallback(async (url: string) => {
         if (!user || user.isAnonymous) return;
         const userDocRef = doc(db, "users", user.uid);
         try {
@@ -270,9 +268,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             console.error("Error updating avatar:", error);
             toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not update your avatar.' });
         }
-    }
+    }, [user]);
 
-    const addApplication = async (app: Omit<Application, 'id' | 'user' | 'userId' | 'score' | 'createdAt'>) => {
+    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'score' | 'createdAt'>) => {
         if (!user || user.isAnonymous) {
             toast({ variant: 'destructive', title: 'Login Required', description: 'You must be logged in to apply.' });
             return;
@@ -301,9 +299,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             createdAt: serverTimestamp()
         };
         await addDoc(collection(db, "applications"), newApp);
-    };
+    }, [user, partners]);
 
-    const updateApplicationStatus = async (appId: string, status: 'Approved' | 'Denied') => {
+    const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
         const appRef = doc(db, "applications", appId);
         const appToUpdate = applications.find(a => a.id === appId);
         if (!appToUpdate) return;
@@ -322,9 +320,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 userId: appToUpdate.userId,
             });
         }
-    };
+    }, [applications]);
     
-    const updatePartnerProfile = async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
+    const updatePartnerProfile = useCallback(async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
         if (!partner) return;
         const partnerRef = doc(db, "partners", partner.id);
 
@@ -342,24 +340,24 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             console.error("Error updating partner profile:", error);
             toast({ variant: 'destructive', title: 'Save Failed', description: 'Could not update your profile.' });
         }
-    }
+    }, [partner]);
     
-    const addPartnerProduct = async (product: Omit<LoanProduct, 'id'>) => {
+    const addPartnerProduct = useCallback(async (product: Omit<LoanProduct, 'id'>) => {
         if (!partner) return;
         await addDoc(collection(db, "partners", partner.id, "products"), product);
-    }
+    }, [partner]);
     
-    const removePartnerProduct = async (id: string) => {
+    const removePartnerProduct = useCallback(async (id: string) => {
         if (!partner) return;
         await deleteDoc(doc(db, "partners", partner.id, "products", id));
         toast({ title: "Product Removed", variant: "destructive" });
-    }
+    }, [partner]);
 
-    const addNotification = async (notification: Omit<Notification, 'id' | 'timestamp'>) => {
+    const addNotification = useCallback(async (notification: Omit<Notification, 'id' | 'timestamp'>) => {
         await addDoc(collection(db, 'notifications'), { ...notification, timestamp: serverTimestamp() });
-    }
+    }, []);
 
-    const markNotificationsAsRead = async (role: 'user' | 'partner') => {
+    const markNotificationsAsRead = useCallback(async (role: 'user' | 'partner') => {
        const relevantId = isPartner ? partner?.id : user?.uid;
        if (!relevantId) return;
 
@@ -372,9 +370,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
            batch.update(docRef, { read: true });
        });
        await batch.commit();
-    }
+    }, [isPartner, partner, user, notifications]);
     
-    const partnerSignup = async (email: string, pass: string, name: string, website: string) => {
+    const partnerSignup = useCallback(async (email: string, pass: string, name: string, website: string) => {
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
             const newPartner = {
@@ -385,9 +383,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 createdAt: serverTimestamp()
             };
             await setDoc(doc(db, "partners", userCredential.user.uid), newPartner);
+            // onAuthStateChanged will handle the rest
         } catch (error: any) {
             console.error("Error during partner signup:", error);
-            // Translate Firebase error codes into user-friendly messages
             if (error.code === 'auth/email-already-in-use') {
                 throw new Error('This email address is already in use by another account.');
             } else if (error.code === 'auth/weak-password') {
@@ -395,37 +393,24 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             }
             throw new Error('An unexpected error occurred during signup. Please try again.');
         }
-    }
+    }, []);
     
-    const partnerLogin = async (email: string, pass: string) => {
+    const partnerLogin = useCallback(async (email: string, pass: string) => {
        try {
             await signInWithEmailAndPassword(auth, email, pass);
+            // onAuthStateChanged will handle the rest
         } catch (error: any) {
             console.error("Error during partner login:", error);
             throw new Error("Login failed. Please check your email and password.");
         }
-    }
+    }, []);
 
-    const logout = async () => {
+    const logout = useCallback(async () => {
         await signOut(auth);
-        setUser(null);
-        setPartner(null);
-        setIsPartner(false);
-        setApplications([]);
-        setNotifications([]);
-        setLoanActivity([]);
-        setPartnerProducts([]);
-        setAvatarUrlState(null);
-        
-        // After logging out, sign in an anonymous user for the public pages
-        try {
-            await signInAnonymously(auth);
-        } catch(e) {
-            console.error("Error signing in anonymously on logout:", e);
-        }
-    };
+        // onAuthStateChanged will handle signing in anonymously
+    }, []);
 
-    const contextValue = {
+    const contextValue = useMemo(() => ({
         user,
         partner,
         isPartner,
@@ -447,7 +432,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         addNotification,
         markNotificationsAsRead,
         loanActivity,
-    };
+    }), [
+        user, partner, isPartner, loading, logout, partnerLogin, partnerSignup,
+        avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus,
+        partners, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct,
+        notifications, addNotification, markNotificationsAsRead, loanActivity
+    ]);
+
 
     return (
         <UserContext.Provider value={contextValue}>
@@ -455,3 +446,5 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
+
+    
