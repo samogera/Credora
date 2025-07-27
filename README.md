@@ -148,33 +148,45 @@ Without valid credit histories, millions are denied access to loans, entrepreneu
 
 ## 🧪 Running Locally
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-org/credora.git
-   cd credora
-   ```
+1.  **Clone the repository**
+    ```bash
+    git clone https://github.com/your-org/credora.git
+    cd credora
+    ```
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+2.  **Install dependencies**
+    ```bash
+    npm install
+    ```
 
-3. **Set up environment variables**
-   - Create a new file named `.env` in the root of your project by copying the example file:
-     ```bash
-     cp .env.example .env
-     ```
-   - Open the `.env` file and add your Google AI (Gemini) API key. You can get one from [Google AI Studio](https://aistudio.google.com/app/apikey).
-     ```
-     GEMINI_API_KEY="YOUR_API_KEY_HERE"
-     ```
+3.  **Set up environment variables**
+    - Create a new file named `.env` in the root of your project. You can copy the example file:
+      ```bash
+      cp .env.example .env
+      ```
+    - Open the `.env` file and add your Google AI (Gemini) API key. You can get one from [Google AI Studio](https://aistudio.google.com/app/apikey).
+      ```
+      GEMINI_API_KEY="YOUR_API_KEY_HERE"
+      ```
 
-4. **Run the development server**
-   ```bash
-   npm run dev
-   ```
+4.  **Run the development server**
+    ```bash
+    npm run dev
+    ```
 
->Requires: *Node.js 18+, Stellar SDK, Soroban CLI, Freighter Wallet (for browser testing)*
+> Requires: *Node.js 18+, Stellar SDK, Soroban CLI, Freighter Wallet (for browser testing)*
+
+## 🚀 Deploying Your Application
+
+To deploy this application, you will need to set up the **environment variables** in your hosting provider's settings. This is crucial for the AI-powered features to work in the live application.
+
+The only variable you need to set is:
+
+-   `GEMINI_API_KEY`: Your API key for Google AI services.
+
+Ensure this variable is set in the deployment environment, otherwise features like loan recommendations and AI score explanations will fail.
+
+---
 
 ## 🤝 Contributing
 

@@ -8,9 +8,8 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <header className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <Logo className="w-8 h-8" />
-          <span className="text-2xl font-bold text-foreground">Credora</span>
+        <Link href="/">
+          <Logo />
         </Link>
         <nav className="flex items-center gap-4">
           <Button variant="ghost" asChild>

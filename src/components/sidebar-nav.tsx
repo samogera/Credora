@@ -43,10 +43,7 @@ export function SidebarNav() {
   return (
     <>
       <SidebarHeader>
-        <div className="flex items-center gap-2">
-          <Logo className="w-8 h-8" />
-          <span className="text-xl font-semibold font-headline">Credora</span>
-        </div>
+        <Logo textSize="text-xl" />
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>

@@ -10,10 +10,9 @@ export default function SignupPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="w-full max-w-md p-8 space-y-8">
-        <div className="text-center">
-          <Link href="/" className="flex items-center justify-center gap-2 mb-6">
-            <Logo />
-            <span className="text-3xl font-bold text-foreground">Credora</span>
+        <div className="text-center space-y-4">
+          <Link href="/">
+             <Logo className="justify-center" textSize="text-3xl" />
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">Create your Account</h1>
           <p className="text-muted-foreground">
