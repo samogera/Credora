@@ -13,10 +13,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { CheckCircle, XCircle, FileSignature } from 'lucide-react';
+import { CheckCircle, XCircle, FileSignature, Bot } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { PartnerPortfolio } from '@/components/partner-portfolio';
 import { LoanActivity } from '@/components/loan-activity';
+import { explainRiskFactors, ExplainRiskFactorsInput, ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const initialApplications = [
   { id: 'app-001', user: 'Anonymous User #4B7A', score: 785, loan: 'Stablecoin Personal Loan', amount: '$10,000', status: 'Pending' },
@@ -25,8 +27,13 @@ const initialApplications = [
   { id: 'app-004', user: 'Anonymous User #C3E8', score: 560, loan: 'Small Business Loan', amount: '$50,000', status: 'Denied' },
 ];
 
+type Application = typeof initialApplications[0] & {
+    aiExplanation?: ExplainRiskFactorsOutput | null;
+    isExplaining?: boolean;
+};
+
 export default function PartnerAdminPage() {
-    const [applications, setApplications] = useState(initialApplications);
+    const [applications, setApplications] = useState<Application[]>(initialApplications);
     const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
     const [isSigning, setIsSigning] = useState(false);
 
@@ -49,6 +56,29 @@ export default function PartnerAdminPage() {
         }, 2000);
     }
 
+    const handleExplainRisk = async (id: string) => {
+        const appIndex = applications.findIndex(app => app.id === id);
+        if (appIndex === -1) return;
+
+        setApplications(apps => apps.map((app, index) => index === appIndex ? { ...app, isExplaining: true, aiExplanation: null } : app));
+
+        const appToExplain = applications[appIndex];
+        const input: ExplainRiskFactorsInput = {
+            score: appToExplain.score,
+            stellarActivity: "Frequent transactions, holds various assets.", // This would be fetched for the user
+            offChainSignals: "Consistent utility payments on time." // This would be fetched for the user
+        };
+
+        try {
+            const result = await explainRiskFactors(input);
+            setApplications(apps => apps.map((app, index) => index === appIndex ? { ...app, aiExplanation: result, isExplaining: false } : app));
+        } catch (error) {
+            console.error("Error explaining risk factors:", error);
+            toast({ variant: 'destructive', title: "AI Error", description: "Could not fetch AI risk explanation." });
+            setApplications(apps => apps.map((app, index) => index === appIndex ? { ...app, isExplaining: false } : app));
+        }
+    };
+
     const getStatusVariant = (status: string) => {
         if (status === 'Approved') return 'default';
         if (status === 'Denied') return 'destructive';
@@ -62,7 +92,6 @@ export default function PartnerAdminPage() {
     }
 
     const pendingApplications = applications.filter(a => a.status === 'Pending');
-    const processedApplications = applications.filter(a => a.status !== 'Pending');
 
     return (
         <>
@@ -72,56 +101,55 @@ export default function PartnerAdminPage() {
         </div>
         <div className="space-y-6 mt-6">
             <PartnerPortfolio />
-            <div className="grid gap-6 lg:grid-cols-2">
-                <Card>
+            <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
+                <Card className="xl:col-span-2">
                     <CardHeader>
                         <CardTitle>Pending Applications</CardTitle>
-                        <CardDescription>Review new loan requests.</CardDescription>
+                        <CardDescription>Review new loan requests from prospective borrowers.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {pendingApplications.map(app => (
-                            <div key={app.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between rounded-lg border p-4 gap-4">
-                                <div>
-                                    <p className="font-semibold">{app.user} - <span className="text-primary">{app.score}</span></p>
-                                    <p className="text-sm text-muted-foreground">{app.loan} for {app.amount}</p>
+                        {pendingApplications.length > 0 ? pendingApplications.map(app => (
+                            <div key={app.id} className="rounded-lg border p-4 space-y-4">
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                    <div>
+                                        <p className="font-semibold text-lg">{app.user}</p>
+                                        <p className="text-sm text-muted-foreground">{app.loan} for <span className="font-medium text-foreground">{app.amount}</span></p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-sm text-muted-foreground">Credora Score</p>
+                                        <p className="text-2xl font-bold text-primary">{app.score}</p>
+                                    </div>
                                 </div>
-                                <div className="flex gap-2 w-full sm:w-auto">
-                                    <Button size="sm" variant="outline" className="flex-1 border-green-500 text-green-500 hover:bg-green-500 hover:text-white" onClick={() => handleDecision(app.id, 'Approved')}>
+                                
+                                {app.isExplaining && <Skeleton className="h-12 w-full" />}
+                                {app.aiExplanation && (
+                                    <div className="text-xs text-muted-foreground p-3 bg-muted/50 rounded-md border">
+                                        <p className="font-semibold text-foreground mb-1">AI Risk Insight:</p>
+                                        {app.aiExplanation.explanation}
+                                    </div>
+                                )}
+                                
+                                <div className="flex gap-2 w-full flex-col sm:flex-row">
+                                    <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => handleDecision(app.id, 'Approved')}>
                                         <CheckCircle className="mr-2 h-4 w-4" /> Approve
                                     </Button>
-                                    <Button size="sm" variant="outline" className="flex-1 border-red-500 text-red-500 hover:bg-red-500 hover:text-white" onClick={() => handleDecision(app.id, 'Denied')}>
+                                    <Button size="sm" variant="destructive" className="flex-1" onClick={() => handleDecision(app.id, 'Denied')}>
                                         <XCircle className="mr-2 h-4 w-4" /> Deny
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="flex-1" onClick={() => handleExplainRisk(app.id)} disabled={app.isExplaining}>
+                                        <Bot className={`mr-2 h-4 w-4 ${app.isExplaining ? 'animate-pulse' : ''}`} />
+                                        {app.isExplaining ? "Analyzing..." : "Explain Risk"}
                                     </Button>
                                 </div>
                             </div>
-                        ))}
-                        {pendingApplications.length === 0 && (
+                        )) : (
                             <p className="text-muted-foreground text-center py-4">No pending applications.</p>
                         )}
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Processed Applications</CardTitle>
-                        <CardDescription>View your recently processed applications.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {processedApplications.map(app => (
-                            <div key={app.id} className="flex items-center justify-between rounded-lg border p-4">
-                                <div>
-                                    <p className="font-semibold">{app.user} - <span className="text-primary">{app.score}</span></p>
-                                    <p className="text-sm text-muted-foreground">{app.loan} for {app.amount}</p>
-                                </div>
-                                <Badge variant={getStatusVariant(app.status)} className={getStatusColor(app.status)}>{app.status}</Badge>
-                            </div>
-                        ))}
-                         {processedApplications.length === 0 && (
-                            <p className="text-muted-foreground text-center py-4">No processed applications.</p>
-                        )}
-                    </CardContent>
-                </Card>
+                <LoanActivity />
             </div>
-            <LoanActivity />
+            
         </div>
          <Dialog open={!!selectedApplicationId} onOpenChange={(isOpen) => !isOpen && setSelectedApplicationId(null)}>
             <DialogContent>
@@ -130,7 +158,7 @@ export default function PartnerAdminPage() {
                         <FileSignature /> Finalize Loan Agreement
                     </DialogTitle>
                     <DialogDescription>
-                        To finalize the loan for User #{selectedApplicationId?.slice(-4)}, you must sign the Soroban smart contract. This creates a legally binding agreement on the Stellar network.
+                        To finalize the loan for {applications.find(a => a.id === selectedApplicationId)?.user}, you must sign the Soroban smart contract. This creates a verifiable agreement on the Stellar network.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4 text-sm">

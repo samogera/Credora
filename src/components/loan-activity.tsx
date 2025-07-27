@@ -33,6 +33,13 @@ export function LoanActivity() {
         return 'outline';
     }
 
+    const getStatusColor = (status: string) => {
+        if (status === 'Active') return 'bg-blue-500';
+        if (status === 'Paid Off') return 'bg-green-500';
+        if (status === 'Delinquent') return 'bg-yellow-500 text-black';
+        return '';
+    }
+
   return (
     <Card>
       <CardHeader>
@@ -47,9 +54,6 @@ export function LoanActivity() {
             <TableRow>
               <TableHead>User</TableHead>
               <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="text-right">Interest Rate</TableHead>
-              <TableHead className="text-right">Repaid</TableHead>
-              <TableHead className="text-right">Interest Accrued</TableHead>
               <TableHead className="text-center">Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -58,15 +62,8 @@ export function LoanActivity() {
               <TableRow key={loan.id}>
                 <TableCell className="font-medium">{loan.user}</TableCell>
                 <TableCell className="text-right">${loan.amount.toLocaleString()}</TableCell>
-                <TableCell className="text-right">{loan.interestRate.toFixed(2)}%</TableCell>
-                <TableCell className="text-right text-green-600">${loan.repaid.toLocaleString()}</TableCell>
-                <TableCell className="text-right">${loan.interestAccrued.toLocaleString()}</TableCell>
                 <TableCell className="text-center">
-                    <Badge variant={getStatusVariant(loan.status)} className={
-                        getStatusVariant(loan.status) === 'default' ? 'bg-blue-500' :
-                        getStatusVariant(loan.status) === 'secondary' ? 'bg-green-500' :
-                        getStatusVariant(loan.status) === 'destructive' ? 'bg-yellow-500' : ''
-                    }>
+                    <Badge variant={getStatusVariant(loan.status)} className={getStatusColor(loan.status)}>
                         {loan.status}
                     </Badge>
                 </TableCell>
