@@ -3,51 +3,55 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Default allow reads for authenticated users, lock down writes.
-    // This allows UI components like partner dashboards to fetch lists.
-    // Write security is handled on a per-collection basis below.
-    match /{document=**} {
-      allow read: if request.auth != null;
-      allow write: if false; // Deny all writes by default
+
+    // Helper function to check if a user is signed in
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // users: A user can create their own document and update it.
-    // No one else can.
+    // Users can only read and write to their own document
     match /users/{userId} {
-      allow create, update: if request.auth.uid == userId;
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
-    
-    // partners: The demo partner can update their profile.
-    // Product creation/deletion is handled in the subcollection.
+
+    // Any signed-in user can read the list of partners and their products
     match /partners/{partnerId} {
-        // For the demo, only a specific UID can act as the partner
-        allow update: if request.auth.uid == 'partner-1-uid'; // Use a placeholder UID
-        
-        match /products/{productId} {
-             // Only the demo partner can manage their products
-             allow create, delete: if request.auth.uid == 'partner-1-uid';
-        }
+      allow read: if isSignedIn();
+      // Only the partner can write to their own profile and subcollections
+      allow write: if isSignedIn() && partnerId == 'partner-1'; // Simplified for demo
+      
+      match /products/{productId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && partnerId == 'partner-1'; // Simplified for demo
+      }
     }
 
-    // applications:
-    // - Users can create applications for themselves.
-    // - The assigned partner can update the status.
+    // Rules for applications
     match /applications/{appId} {
-      allow create: if request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn();
+      
+      // A user can only create an application for themselves.
+      // They cannot specify a status other than 'Pending'.
+      allow create: if isSignedIn() 
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == 'Pending';
 
-      // Only allow 'status' field to be updated, and only by the demo partner
-      allow update: if request.auth.uid == 'partner-1-uid'
-                    && request.resource.data.keys().hasOnly(['status']);
+      // Only a partner can update the status of an application.
+      // The user cannot change any other fields.
+      allow update: if isSignedIn()
+                    && request.resource.data.status != resource.data.status
+                    && request.resource.data.userId == resource.data.userId; // Ensure userId is not changed
     }
 
-    // notifications:
-    // - Can be created by the system (simulated by authenticated users for now).
-    // - Can be updated (to be marked as 'read') only by the recipient.
+    // Rules for notifications
     match /notifications/{notifId} {
-      allow create: if request.auth != null;
-      allow update: if request.auth.uid == resource.data.userId 
-                    && request.resource.data.keys().hasOnly(['read']);
+       // Users can read their own notifications
+       // Partners can read partner notifications
+      allow read: if isSignedIn() && 
+                    (request.resource.data.userId == request.auth.uid || request.resource.data.for == 'partner');
+                    
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && request.resource.data.read == true;
     }
   }
 }

@@ -124,34 +124,41 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [partnerProfile, setPartnerProfileState] = useState({ name: "Stellar Lend", logo: "https://placehold.co/40x40/111111/FFFFFF?text=SL", website: "https://stellarlend.finance" });
     const [partnerProducts, setPartnerProducts] = useState<LoanProduct[]>([]);
 
-    // Ensure user is signed in anonymously for read access
     useEffect(() => {
-        signInAnonymously(auth).catch((error) => {
-            console.error("Anonymous sign-in failed:", error);
-        });
-    }, []);
+        const seedDataAndSignIn = async () => {
+            try {
+                // Seed initial data if partners collection is empty
+                const partnersRef = collection(db, "partners");
+                const q = query(partnersRef, where(documentId(), "in", initialPartners.map(p => p.id)));
+                const snapshot = await getDocs(q);
 
-    useEffect(() => {
-        // Seed initial data if partners collection is empty
-        const seedPartners = async () => {
-            const partnersRef = collection(db, "partners");
-            const q = query(partnersRef, where(documentId(), "in", initialPartners.map(p => p.id)));
-            const snapshot = await getDocs(q);
-            if (snapshot.size !== initialPartners.length) {
-                console.log("Seeding partners...");
-                const batch = writeBatch(db);
-                initialPartners.forEach((partner) => {
-                    const partnerDocRef = doc(db, "partners", partner.id);
-                    batch.set(partnerDocRef, { name: partner.name, logo: partner.logo, description: partner.description, website: partner.website });
-                    partner.products.forEach((product) => {
-                        const productDocRef = doc(collection(db, "partners", partner.id, "products"), product.id);
-                        batch.set(productDocRef, { ...product, id: undefined }); // Don't store id field inside doc
+                if (snapshot.size < initialPartners.length) {
+                    console.log("Seeding partners...");
+                    const batch = writeBatch(db);
+                    initialPartners.forEach((partner) => {
+                        const partnerDocRef = doc(db, "partners", partner.id);
+                        batch.set(partnerDocRef, { name: partner.name, logo: partner.logo, description: partner.description, website: partner.website });
+                        partner.products.forEach((product) => {
+                            const productDocRef = doc(collection(db, "partners", partner.id, "products"), product.id);
+                            // Do not store 'id' field inside the document itself
+                            const { id, ...productData } = product;
+                            batch.set(productDocRef, productData);
+                        });
                     });
-                });
-                await batch.commit();
+                    await batch.commit();
+                    console.log("Seeding complete.");
+                }
+
+                // Ensure user is signed in anonymously for read access
+                if (!auth.currentUser) {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Error during initial setup:", error);
             }
         };
-        seedPartners();
+
+        seedDataAndSignIn();
     }, []);
 
     useEffect(() => {
@@ -159,9 +166,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             setUser(currentUser);
             if (currentUser && !currentUser.isAnonymous) {
                 const userDocRef = doc(db, "users", currentUser.uid);
-                await setDoc(userDocRef, { 
-                    email: currentUser.email, 
-                    displayName: currentUser.displayName || `User #${currentUser.uid.substring(0,4)}` 
+                await setDoc(userDocRef, {
+                    email: currentUser.email,
+                    displayName: currentUser.displayName || `User #${currentUser.uid.substring(0,4)}`
                 }, { merge: true });
             }
         });
@@ -186,7 +193,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid), orderBy("timestamp", "desc"));
         const unsubscribeNotifs = onSnapshot(qNotifs, (snapshot) => {
             const userNotifs = snapshot.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp.toDate() } as Notification));
-            setNotifications(prev => [...prev.filter(n => n.for !== 'user'), ...userNotifs]);
+            setNotifications(prev => [...prev.filter(n => n.for !== 'user' || n.userId !== user.uid), ...userNotifs]);
         }, (error) => console.error("User notification listener error: ", error));
         
         const userDocRef = doc(db, "users", user.uid);
@@ -225,7 +232,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     // This effect is for the logged-in partner view
     useEffect(() => {
-         const partnerId = "partner-1";
+         const partnerId = "partner-1"; // Assume this partner is logged in for the demo
 
          const unsubProfile = onSnapshot(doc(db, "partners", partnerId), (doc) => {
             if(doc.exists()){
@@ -238,7 +245,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
              setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
          });
 
-         const qApps = query(collection(db, "applications"), orderBy("status", "desc"));
+         const qApps = query(collection(db, "applications"), orderBy("status", "asc"));
          const unsubscribeApps = onSnapshot(qApps, (snapshot) => {
              const appsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application));
              setApplications(appsData);
@@ -276,14 +283,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             }
         } catch (error) {
             console.error("Error updating avatar:", error);
+            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not update your avatar.' });
         }
     }
 
     const addApplication = async (app: Omit<Application, 'id' | 'user' | 'userId' >) => {
         if (!user || user.isAnonymous) return;
-        const newApp = { 
-            ...app, 
-            userId: user.uid, 
+        const newApp = {
+            ...app,
+            userId: user.uid,
             user: {
                 displayName: user.displayName || `User #${user.uid.substring(0,4)}`,
                 avatarUrl: avatarUrl
@@ -301,15 +309,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const partnerId = "partner-1";
         const partnerRef = doc(db, "partners", partnerId);
 
-        if (profile.logo && profile.logo.startsWith('data:image')) {
-            const storageRef = ref(storage, `partners/${partnerId}/logo.png`);
-            const snapshot = await uploadString(storageRef, profile.logo, 'data_url');
-            const downloadUrl = await getDownloadURL(snapshot.ref);
-            profile.logo = downloadUrl;
-        }
+        try {
+            if (profile.logo && profile.logo.startsWith('data:image')) {
+                const storageRef = ref(storage, `partners/${partnerId}/logo.png`);
+                const snapshot = await uploadString(storageRef, profile.logo, 'data_url');
+                const downloadUrl = await getDownloadURL(snapshot.ref);
+                profile.logo = downloadUrl;
+            }
 
-        await updateDoc(partnerRef, profile);
-        toast({ title: "Profile Saved!", description: "Your public profile has been updated."})
+            await updateDoc(partnerRef, profile);
+            toast({ title: "Profile Saved!", description: "Your public profile has been updated."})
+        } catch(error) {
+            console.error("Error updating partner profile:", error);
+            toast({ variant: 'destructive', title: 'Save Failed', description: 'Could not update your profile.' });
+        }
     }
     
     const addPartnerProduct = async (product: Omit<LoanProduct, 'id'>) => {
