@@ -23,33 +23,31 @@ import { explainRiskFactors, ExplainRiskFactorsInput, ExplainRiskFactorsOutput }
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { UserContext } from '@/context/user-context';
+import { UserContext, Application } from '@/context/user-context';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
-const initialApplications = [
-  { id: 'app-001', user: 'Anonymous User #4B7A', score: 785, loan: 'Stablecoin Personal Loan', amount: '$10,000', status: 'Pending' },
-  { id: 'app-002', user: 'Anonymous User #9F2C', score: 690, loan: 'AQUA-Backed Loan', amount: '$7,500', status: 'Pending' },
-  { id: 'app-003', user: 'Anonymous User #1A5D', score: 810, loan: 'Ecosystem Grant Loan', amount: '$5,000', status: 'Approved' },
-  { id: 'app-004', user: 'Anonymous User #C3E8', score: 560, loan: 'Small Business Loan', amount: '$50,000', status: 'Denied' },
-];
-
-type Application = typeof initialApplications[0] & {
-    aiExplanation?: ExplainRiskFactorsOutput | null;
-    isExplaining?: boolean;
-};
-
 export default function PartnerAdminPage() {
-    const { avatarUrl } = useContext(UserContext);
-    const [applications, setApplications] = useState<Application[]>(initialApplications);
+    const { avatarUrl, applications, updateApplicationStatus, addNotification } = useContext(UserContext);
     const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
     const [isSigning, setIsSigning] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
 
     const handleDecision = (id: string, decision: 'Approved' | 'Denied') => {
-        setApplications(apps => apps.map(app => app.id === id ? { ...app, status: decision } : app));
-        if (decision === 'Approved') {
-            const appToSign = applications.find(a => a.id === id);
-            if (appToSign) setSelectedApplication(appToSign);
+        updateApplicationStatus(id, decision);
+        const app = applications.find(a => a.id === id);
+        if (app) {
+            addNotification({
+                for: 'user',
+                type: decision === 'Approved' ? 'approval' : 'denial',
+                title: `Loan ${decision}`,
+                message: `Your application for the ${app.loan.name} has been ${decision.toLowerCase()}.`,
+                read: false,
+                timestamp: new Date(),
+            });
+
+            if (decision === 'Approved') {
+                setSelectedApplication(app);
+            }
         }
     };
     
@@ -74,13 +72,12 @@ export default function PartnerAdminPage() {
     };
 
     const handleExplainRisk = async (id: string) => {
-        const appIndex = applications.findIndex(app => app.id === id);
-        if (appIndex === -1) return;
+        const appToExplain = applications.find(app => app.id === id);
+        if (!appToExplain) return;
 
-        setApplications(apps => apps.map((app, index) => index === appIndex ? { ...app, isExplaining: true, aiExplanation: null } : app));
-        setSelectedApplication(prev => prev ? {...prev, isExplaining: true, aiExplanation: null} : null);
+        appToExplain.isExplaining = true;
+        setSelectedApplication({...appToExplain});
 
-        const appToExplain = applications[appIndex];
         const input: ExplainRiskFactorsInput = {
             score: appToExplain.score,
             stellarActivity: "Frequent transactions, holds various assets.",
@@ -89,14 +86,13 @@ export default function PartnerAdminPage() {
 
         try {
             const result = await explainRiskFactors(input);
-            setApplications(apps => apps.map((app, index) => index === appIndex ? { ...app, aiExplanation: result, isExplaining: false } : app));
-            setSelectedApplication(prev => prev && prev.id === id ? {...prev, aiExplanation: result, isExplaining: false} : prev);
-
+            appToExplain.aiExplanation = result;
         } catch (error) {
             console.error("Error explaining risk factors:", error);
             toast({ variant: 'destructive', title: "AI Error", description: "Could not fetch AI risk explanation." });
-            setApplications(apps => apps.map((app, index) => index === appIndex ? { ...app, isExplaining: false } : app));
-            setSelectedApplication(prev => prev && prev.id === id ? {...prev, isExplaining: false} : prev);
+        } finally {
+            appToExplain.isExplaining = false;
+            setSelectedApplication({...appToExplain});
         }
     };
 
@@ -139,8 +135,8 @@ export default function PartnerAdminPage() {
                                     <TableRow key={app.id}>
                                         <TableCell className="font-medium">{app.user}</TableCell>
                                         <TableCell className={`text-center font-bold text-lg ${getScoreColor(app.score)}`}>{app.score}</TableCell>
-                                        <TableCell>{app.loan}</TableCell>
-                                        <TableCell className="text-right">{app.amount}</TableCell>
+                                        <TableCell>{app.loan.name}</TableCell>
+                                        <TableCell className="text-right">${app.amount.toLocaleString()}</TableCell>
                                         <TableCell className="text-right">
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
@@ -180,7 +176,7 @@ export default function PartnerAdminPage() {
                             </Avatar>
                             Borrower Profile
                         </DialogTitle>
-                        <DialogDescription>{selectedApplication?.user} - {selectedApplication?.loan}</DialogDescription>
+                        <DialogDescription>{selectedApplication?.user} - {selectedApplication?.loan.name}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-6 py-4">
                         <div className="grid grid-cols-2 gap-4 text-center">
@@ -240,7 +236,7 @@ export default function PartnerAdminPage() {
                  </DialogContent>
             </Dialog>
 
-             <Dialog open={!!selectedApplication && !isProfileOpen} onOpenChange={(isOpen) => !isOpen && setSelectedApplication(null)}>
+             <Dialog open={!!selectedApplication && !isProfileOpen && selectedApplication.status === 'Approved'} onOpenChange={(isOpen) => !isOpen && setSelectedApplication(null)}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
@@ -252,7 +248,7 @@ export default function PartnerAdminPage() {
                     </DialogHeader>
                     <div className="space-y-4 py-4 text-sm">
                        <p>This action is irreversible and will transfer the loan amount to the user's wallet upon their final confirmation.</p>
-                       <p className="font-medium text-destructive">You are signing to approve a loan of {selectedApplication?.amount} for {selectedApplication?.loan}.</p>
+                       <p className="font-medium text-destructive">You are signing to approve a loan of ${selectedApplication?.amount.toLocaleString()} for {selectedApplication?.loan.name}.</p>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setSelectedApplication(null)} disabled={isSigning}>Cancel</Button>

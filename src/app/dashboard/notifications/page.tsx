@@ -1,61 +1,25 @@
 
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Clock, Info, User, Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { CheckCircle, Clock, Info, User, Check, XCircle, FileSignature } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-
-const allUserNotifications = [
-    {
-      id: 1,
-      icon: <CheckCircle className="h-5 w-5 text-green-500" />,
-      title: "Loan Approved!",
-      description: "Your application for the Stablecoin Personal Loan has been approved by Stellar Lend for $10,000.",
-      time: "2 hours ago",
-      read: false,
-    },
-    {
-      id: 2,
-      icon: <Clock className="h-5 w-5 text-yellow-500" />,
-      title: "Application Under Review",
-      description: "Your application for the AQUA-Backed Loan is still under review by Aqua Finance.",
-      time: "1 day ago",
-      read: false,
-    },
-    {
-      id: 3,
-      icon: <Info className="h-5 w-5 text-blue-500" />,
-      title: "New Partner Product",
-      description: "Anchor Finance just added a new Small Business Loan product. Check it out!",
-      time: "2 days ago",
-      read: true,
-    },
-    {
-      id: 4,
-      icon: <User className="h-5 w-5 text-gray-500" />,
-      title: "Profile Update",
-      description: "You successfully updated your email address.",
-      time: "5 days ago",
-      read: true,
-    },
-  ];
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { UserContext, Notification } from '@/context/user-context';
+import { formatDistanceToNow } from 'date-fns';
 
 export default function NotificationsPage() {
-    const [notifications, setNotifications] = useState(allUserNotifications);
+    const { notifications, markNotificationsAsRead } = useContext(UserContext);
     
-    const unreadCount = notifications.filter(n => !n.read).length;
+    const userNotifications = notifications.filter(n => n.for === 'user');
+    const unreadCount = userNotifications.filter(n => !n.read).length;
 
-    const markAllAsRead = () => {
-        setNotifications(notifications.map(n => ({ ...n, read: true })));
-    }
-
-    const toggleRead = (id: number) => {
-        setNotifications(notifications.map(n => n.id === id ? { ...n, read: !n.read } : n));
+    const handleMarkAllAsRead = () => {
+        markNotificationsAsRead('user');
     }
 
   return (
@@ -69,7 +33,7 @@ export default function NotificationsPage() {
           <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Your Notifications</CardTitle>
-                <Button variant="ghost" size="sm" onClick={markAllAsRead} disabled={unreadCount === 0}>
+                <Button variant="ghost" size="sm" onClick={handleMarkAllAsRead} disabled={unreadCount === 0}>
                    <Check className="mr-2 h-4 w-4" />
                    Mark all as read
                 </Button>
@@ -84,23 +48,26 @@ export default function NotificationsPage() {
                 </TabsList>
                 <div className="mt-4">
                     <TabsContent value="all">
-                        {notifications.map((n, index) => (
-                           <NotificationItem key={n.id} notification={n} isLast={index === notifications.length - 1} onToggleRead={toggleRead} />
+                        {userNotifications.map((n, index) => (
+                           <NotificationItem key={index} notification={n} isLast={index === userNotifications.length - 1} />
                         ))}
+                         {userNotifications.length === 0 && (
+                            <p className="text-center text-muted-foreground py-12">No notifications yet.</p>
+                        )}
                     </TabsContent>
                     <TabsContent value="unread">
-                        {notifications.filter(n => !n.read).map((n, index) => (
-                             <NotificationItem key={n.id} notification={n} isLast={index === notifications.filter(n => !n.read).length - 1} onToggleRead={toggleRead} />
+                        {userNotifications.filter(n => !n.read).map((n, index) => (
+                             <NotificationItem key={index} notification={n} isLast={index === userNotifications.filter(n => !n.read).length - 1} />
                         ))}
-                         {notifications.filter(n => !n.read).length === 0 && (
+                         {userNotifications.filter(n => !n.read).length === 0 && (
                             <p className="text-center text-muted-foreground py-12">No unread notifications.</p>
                         )}
                     </TabsContent>
                     <TabsContent value="read">
-                        {notifications.filter(n => n.read).map((n, index) => (
-                            <NotificationItem key={n.id} notification={n} isLast={index === notifications.filter(n => n.read).length - 1} onToggleRead={toggleRead} />
+                        {userNotifications.filter(n => n.read).map((n, index) => (
+                            <NotificationItem key={index} notification={n} isLast={index === userNotifications.filter(n => n.read).length - 1} />
                         ))}
-                         {notifications.filter(n => n.read).length === 0 && (
+                         {userNotifications.filter(n => n.read).length === 0 && (
                             <p className="text-center text-muted-foreground py-12">No read notifications.</p>
                         )}
                     </TabsContent>
@@ -112,21 +79,29 @@ export default function NotificationsPage() {
   )
 }
 
-function NotificationItem({ notification, isLast, onToggleRead }: { notification: typeof allUserNotifications[0], isLast: boolean, onToggleRead: (id: number) => void}) {
+function NotificationItem({ notification, isLast }: { notification: Notification, isLast: boolean }) {
+    
+    const getIcon = (type: string) => {
+        switch (type) {
+            case 'approval': return <CheckCircle className="h-5 w-5 text-green-500" />;
+            case 'denial': return <XCircle className="h-5 w-5 text-red-500" />;
+            case 'info': return <Info className="h-5 w-5 text-blue-500" />;
+            default: return <User className="h-5 w-5 text-gray-500" />;
+        }
+    }
+    
     return (
       <>
         <div className="flex items-start gap-4 p-4 hover:bg-muted/50 rounded-lg">
             <Avatar className="h-10 w-10 border">
-                <AvatarFallback>{notification.icon}</AvatarFallback>
+                <AvatarFallback>{getIcon(notification.type)}</AvatarFallback>
             </Avatar>
             <div className="flex-1">
                 <h4 className="font-semibold">{notification.title}</h4>
-                <p className="text-sm text-muted-foreground">{notification.description}</p>
-                <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
+                <p className="text-sm text-muted-foreground">{notification.message}</p>
+                <p className="text-xs text-muted-foreground mt-1">{formatDistanceToNow(notification.timestamp, { addSuffix: true })}</p>
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onToggleRead(notification.id)}>
-                {!notification.read && <div className="h-2.5 w-2.5 rounded-full bg-primary" title="Mark as read"></div>}
-            </Button>
+            {!notification.read && <div className="h-2.5 w-2.5 rounded-full bg-primary self-center" title="Unread"></div>}
         </div>
         {!isLast && <Separator />}
       </>

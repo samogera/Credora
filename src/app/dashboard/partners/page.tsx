@@ -1,7 +1,8 @@
 
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -17,56 +18,48 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { Slider } from '@/components/ui/slider';
-import { cn } from '@/lib/utils';
+import { UserContext, LoanProduct } from '@/context/user-context';
 
-const partners = [
-  {
-    name: "Stellar Lend",
-    logo: "https://placehold.co/40x40",
-    description: "Low-interest loans for Stellar ecosystem projects.",
-    products: [
-      { id: "sl-001", name: "Ecosystem Grant Loan", rate: "3.5%", maxAmount: 5000 },
-      { id: "sl-002", name: "Stablecoin Personal Loan", rate: "5.0%", maxAmount: 10000 },
-    ],
-  },
-  {
-    name: "Aqua Finance",
-    logo: "https://placehold.co/40x40",
-    description: "DeFi lending powered by the AQUA token.",
-    products: [
-        { id: "af-001", name: "AQUA-Backed Loan", rate: "4.2%", maxAmount: 7500 },
-        { id: "af-002", name: "Liquidity Provider Loan", rate: "6.1%", maxAmount: 25000 },
-    ],
-  },
-  {
-    name: "Anchor Finance",
-    logo: "https://placehold.co/40x40",
-    description: "Your anchor in the world of decentralized finance.",
-     products: [
-        { id: "an-001", name: "Small Business Loan", rate: "7.5%", maxAmount: 50000 },
-    ],
-  },
-];
-
-type LoanProduct = {
-  id: string;
-  name: string;
-  rate: string;
-  maxAmount: number;
-};
 
 export default function PartnersPage() {
-    const [selectedLoan, setSelectedLoan] = useState<LoanProduct | null>(null);
+    const { partners, addApplication, addNotification } = useContext(UserContext);
+    const [selectedLoan, setSelectedLoan] = useState<LoanProduct & { partnerName: string } | null>(null);
     const [isApplying, setIsApplying] = useState(false);
     const [customAmount, setCustomAmount] = useState(500);
 
-    const handleApplyClick = (product: LoanProduct) => {
-        setSelectedLoan(product);
+    const handleApplyClick = (product: LoanProduct, partnerName: string) => {
+        setSelectedLoan({ ...product, partnerName });
         setCustomAmount(Math.min(1000, product.maxAmount));
     };
 
     const handleApplicationSubmit = () => {
+        if (!selectedLoan) return;
         setIsApplying(true);
+
+        const newApplication = {
+            id: `app-${Date.now()}`,
+            user: 'Anonymous User #4B7A',
+            score: 785, // Dummy score
+            loan: {
+                id: selectedLoan.id,
+                name: selectedLoan.name,
+                partnerName: selectedLoan.partnerName,
+            },
+            amount: customAmount,
+            status: 'Pending' as const,
+        };
+
+        addApplication(newApplication);
+
+        addNotification({
+            for: 'partner',
+            type: 'new_application',
+            title: 'New Application',
+            message: `A new loan application for $${customAmount.toLocaleString()} (${selectedLoan.name}) has been submitted.`,
+            read: false,
+            timestamp: new Date(),
+        })
+
         setTimeout(() => {
             setIsApplying(false);
             setSelectedLoan(null);
@@ -106,9 +99,12 @@ export default function PartnersPage() {
                                 <p className="font-medium">{product.name}</p>
                                 <p className="text-sm text-muted-foreground">Up to {formatCurrency(product.maxAmount)} at {product.rate}</p>
                             </div>
-                            <Button size="sm" onClick={() => handleApplyClick(product)}>Apply</Button>
+                            <Button size="sm" onClick={() => handleApplyClick(product, partner.name)}>Apply</Button>
                         </div>
                     ))}
+                    {partner.products.length === 0 && (
+                        <p className="text-sm text-center text-muted-foreground pt-4">No products available.</p>
+                    )}
                 </div>
             </CardContent>
             </Card>

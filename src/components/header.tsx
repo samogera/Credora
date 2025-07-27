@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import Link from "next/link";
@@ -13,32 +14,41 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { LifeBuoy, LogOut, Settings, CircleUserRound, Bell, User, Building } from "lucide-react"
+import { LifeBuoy, LogOut, Settings, CircleUserRound, Bell, User, Building, CheckCircle, FileSignature, XCircle } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { useContext } from "react";
 import { UserContext } from "@/context/user-context";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Badge } from "./ui/badge";
-
-const userNotifications = [
-    { title: "Loan Approved!", description: "Your application for the Stablecoin Personal Loan has been approved by Stellar Lend." },
-    { title: "Application Update", description: "Your application for the AQUA-Backed Loan is still under review." },
-];
-
-const partnerNotifications = [
-    { title: "New Application", description: "Anonymous User #4B7A has applied for a Stablecoin Personal Loan." },
-    { title: "New Application", description: "Anonymous User #9F2C has applied for an AQUA-Backed Loan." },
-];
+import { formatDistanceToNow } from "date-fns";
 
 export function Header() {
-  const { avatarUrl } = useContext(UserContext);
+  const { avatarUrl, notifications } = useContext(UserContext);
   const pathname = usePathname();
   const isPartnerView = pathname.startsWith('/dashboard/partner-admin');
 
   const settingsPath = isPartnerView ? '/dashboard/partner-admin/settings' : '/dashboard/settings';
-  const notifications = isPartnerView ? partnerNotifications : userNotifications;
   const notificationsPath = isPartnerView ? '/dashboard/partner-admin/notifications' : '/dashboard/notifications';
-  const notificationIcon = isPartnerView ? <Building className="mr-2 h-4 w-4" /> : <User className="mr-2 h-4 w-4" />;
+  
+  const relevantNotifications = notifications
+    .filter(n => n.for === (isPartnerView ? 'partner' : 'user'))
+    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    
+  const unreadCount = relevantNotifications.filter(n => !n.read).length;
+
+  const getNotificationIcon = (type: string) => {
+      switch (type) {
+          case 'new_application':
+              return <FileSignature className="h-4 w-4 text-blue-500" />;
+          case 'approval':
+              return <CheckCircle className="h-4 w-4 text-green-500" />;
+          case 'denial':
+              return <XCircle className="h-4 w-4 text-red-500" />;
+          default:
+              return <User className="h-4 w-4" />;
+      }
+  };
+
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:px-6">
@@ -51,28 +61,33 @@ export function Header() {
         <PopoverTrigger asChild>
           <Button variant="outline" size="icon" className="relative rounded-full">
             <Bell />
-             <Badge className="absolute -top-1 -right-1 h-4 w-4 justify-center p-0" variant="destructive">
-              {notifications.length}
-            </Badge>
+            {unreadCount > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-4 w-4 justify-center p-0" variant="destructive">
+                {unreadCount}
+                </Badge>
+            )}
             <span className="sr-only">Toggle notifications</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-80">
-          <div className="p-4">
-             <h3 className="text-sm font-medium">Notifications</h3>
+        <PopoverContent align="end" className="w-80 p-0">
+          <div className="p-2 border-b">
+             <h3 className="text-sm font-medium px-2 py-1">Notifications</h3>
           </div>
-          <div className="space-y-2 p-2">
-            {notifications.map((notification, index) => (
-              <div key={index} className="flex items-start gap-2 rounded-md p-2 text-sm hover:bg-accent">
-                <div className="mt-1">{notificationIcon}</div>
-                <div>
+          <div className="space-y-1 p-2 max-h-80 overflow-y-auto">
+            {relevantNotifications.length > 0 ? relevantNotifications.slice(0, 5).map((notification, index) => (
+              <div key={index} className="flex items-start gap-3 rounded-md p-2 text-sm hover:bg-accent">
+                <div className="mt-1">{getNotificationIcon(notification.type)}</div>
+                <div className="flex-1">
                   <p className="font-semibold">{notification.title}</p>
-                  <p className="text-muted-foreground">{notification.description}</p>
+                  <p className="text-xs text-muted-foreground">{notification.message}</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">{formatDistanceToNow(notification.timestamp, { addSuffix: true })}</p>
                 </div>
               </div>
-            ))}
+            )) : (
+              <p className="text-center text-sm text-muted-foreground p-4">No new notifications.</p>
+            )}
           </div>
-           <div className="p-2 border-t">
+           <div className="p-1 border-t">
               <Button size="sm" variant="link" className="w-full" asChild>
                 <Link href={notificationsPath}>View all notifications</Link>
               </Button>
@@ -88,9 +103,9 @@ export function Header() {
             className="overflow-hidden rounded-full"
           >
              <Avatar>
-                <AvatarImage src={avatarUrl || ''} alt="User Avatar" data-ai-hint="avatar" />
+                <AvatarImage src={isPartnerView ? '' : avatarUrl || ''} alt="User Avatar" data-ai-hint="avatar" />
                 <AvatarFallback>
-                    <CircleUserRound />
+                    {isPartnerView ? <Building /> : <CircleUserRound />}
                 </AvatarFallback>
             </Avatar>
           </Button>

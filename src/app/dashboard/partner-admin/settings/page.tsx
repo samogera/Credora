@@ -1,35 +1,73 @@
 
+
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useContext } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { PlusCircle, Upload, Image as ImageIcon } from "lucide-react";
+import { PlusCircle, Upload, Image as ImageIcon, Trash2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { UserContext, LoanProduct } from '@/context/user-context';
+import { toast } from '@/hooks/use-toast';
 
 export default function PartnerSettingsPage() {
-    const [logoUrl, setLogoUrl] = useState<string | null>(null);
+    const { partnerProfile, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct } = useContext(UserContext);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Local state for new product form
+    const [newProduct, setNewProduct] = useState({ name: '', rate: '', maxAmount: '', term: '', requirements: '' });
+    const [isAdding, setIsAdding] = useState(false);
+
 
     const handleLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                setLogoUrl(reader.result as string);
+                updatePartnerProfile({ logo: reader.result as string });
             };
             reader.readAsDataURL(file);
         }
     };
 
+    const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        updatePartnerProfile({ [e.target.id]: e.target.value });
+    }
+
     const handleUploadClick = () => {
         fileInputRef.current?.click();
+    };
+
+    const handleAddNewProduct = () => {
+        if (!newProduct.name || !newProduct.rate || !newProduct.maxAmount) {
+            toast({
+                variant: 'destructive',
+                title: 'Missing Fields',
+                description: 'Please fill out all required product fields.',
+            });
+            return;
+        }
+        const productToAdd: LoanProduct = {
+            id: `prod-${Date.now()}`,
+            name: newProduct.name,
+            rate: `${parseFloat(newProduct.rate).toFixed(1)}%`,
+            maxAmount: parseInt(newProduct.maxAmount, 10),
+            term: parseInt(newProduct.term, 10),
+            requirements: newProduct.requirements
+        };
+        addPartnerProduct(productToAdd);
+        setNewProduct({ name: '', rate: '', maxAmount: '', term: '', requirements: '' });
+        setIsAdding(false);
+        toast({
+            title: 'Product Added!',
+            description: `${productToAdd.name} is now available to users.`
+        });
     };
 
   return (
@@ -46,57 +84,55 @@ export default function PartnerSettingsPage() {
                         <CardTitle>My Loan Products</CardTitle>
                         <CardDescription>Define the loan products you want to offer to Credora users.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="p-4 border rounded-lg space-y-4">
-                            <div className="grid md:grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="product-name-1">Product Name</Label>
-                                    <Input id="product-name-1" defaultValue="Stablecoin Personal Loan" />
+                    <CardContent className="space-y-4">
+                        {partnerProducts.map((product) => (
+                           <div key={product.id} className="p-4 border rounded-lg space-y-2 relative">
+                                <h4 className="font-semibold">{product.name}</h4>
+                                <p className="text-sm text-muted-foreground">Rate: {product.rate} | Max Amount: ${product.maxAmount.toLocaleString()} | Term: {product.term} months</p>
+                                {product.requirements && <p className="text-xs text-muted-foreground">Reqs: {product.requirements}</p>}
+                                <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-7 w-7" onClick={() => removePartnerProduct(product.id)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                            </div>
+                        ))}
+                         
+                         {isAdding && (
+                            <div className="p-4 border rounded-lg space-y-4 border-dashed">
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="product-name-new">Product Name</Label>
+                                        <Input id="product-name-new" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} placeholder="e.g. Stablecoin Loan" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="interest-rate-new">Interest Rate (%)</Label>
+                                        <Input id="interest-rate-new" type="number" value={newProduct.rate} onChange={e => setNewProduct({...newProduct, rate: e.target.value})} placeholder="e.g. 5.0" />
+                                    </div>
                                 </div>
-                                 <div className="space-y-1.5">
-                                    <Label htmlFor="interest-rate-1">Interest Rate (%)</Label>
-                                    <Input id="interest-rate-1" type="number" defaultValue="5.0" />
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="max-amount-new">Max Amount ($)</Label>
+                                        <Input id="max-amount-new" type="number" value={newProduct.maxAmount} onChange={e => setNewProduct({...newProduct, maxAmount: e.target.value})} placeholder="e.g. 10000" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="duration-new">Term (Months)</Label>
+                                        <Input id="duration-new" type="number" value={newProduct.term} onChange={e => setNewProduct({...newProduct, term: e.target.value})} placeholder="e.g. 12" />
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="requirements-new">Requirements</Label>
+                                    <Textarea id="requirements-new" placeholder="e.g. Credit score above 700" value={newProduct.requirements} onChange={e => setNewProduct({...newProduct, requirements: e.target.value})} />
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button onClick={handleAddNewProduct}>Save Product</Button>
+                                    <Button variant="ghost" onClick={() => setIsAdding(false)}>Cancel</Button>
                                 </div>
                             </div>
-                            <div className="grid md:grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="max-amount-1">Max Amount ($)</Label>
-                                    <Input id="max-amount-1" type="number" defaultValue="10000" />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="duration-1">Term (Months)</Label>
-                                    <Input id="duration-1" type="number" defaultValue="12" />
-                                </div>
-                            </div>
-                             <div className="space-y-1.5">
-                                <Label htmlFor="requirements-1">Requirements</Label>
-                                <Textarea id="requirements-1" placeholder="e.g. Credit score above 700" defaultValue="Credit score above 700" />
-                            </div>
-                        </div>
-                         <Button variant="outline">
+                         )}
+
+                         <Button variant="outline" onClick={() => setIsAdding(true)} disabled={isAdding}>
                             <PlusCircle className="mr-2 h-4 w-4" />
                             Add New Product
                         </Button>
-                    </CardContent>
-                </Card>
-
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Lending Preferences</CardTitle>
-                        <CardDescription>Set the general criteria for loan applications you want to receive.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid md:grid-cols-2 gap-4">
-                             <div className="space-y-1.5">
-                                <Label htmlFor="min-score">Minimum Credora Score</Label>
-                                <Input id="min-score" type="number" defaultValue="650" />
-                            </div>
-                             <div className="space-y-1.5">
-                                <Label htmlFor="max-risk">Maximum Risk Band</Label>
-                                <Input id="max-risk" defaultValue="Medium" />
-                            </div>
-                        </div>
-                        <Button>Save Preferences</Button>
                     </CardContent>
                 </Card>
             </div>
@@ -108,18 +144,18 @@ export default function PartnerSettingsPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-1.5">
-                            <Label htmlFor="company-name">Company Name</Label>
-                            <Input id="company-name" defaultValue="Stellar Lend" />
+                            <Label htmlFor="name">Company Name</Label>
+                            <Input id="name" value={partnerProfile.name} onChange={handleProfileChange} />
                         </div>
                         <div className="space-y-1.5">
-                            <Label htmlFor="company-website">Website URL</Label>
-                            <Input id="company-website" defaultValue="https://stellarlend.finance" />
+                            <Label htmlFor="website">Website URL</Label>
+                            <Input id="website" value={partnerProfile.website} onChange={handleProfileChange} />
                         </div>
                         <div className="space-y-1.5">
                             <Label>Company Logo</Label>
                              <div className="flex items-center gap-4">
                                 <Avatar className="h-16 w-16 rounded-md">
-                                    {logoUrl ? <Image src={logoUrl} alt="Company Logo" layout="fill" objectFit="cover" className="rounded-md" /> :
+                                    {partnerProfile.logo ? <Image src={partnerProfile.logo} alt="Company Logo" layout="fill" objectFit="cover" className="rounded-md" /> :
                                     <AvatarFallback className="rounded-md">
                                         <ImageIcon className="h-8 w-8 text-muted-foreground" />
                                     </AvatarFallback>}
@@ -137,7 +173,7 @@ export default function PartnerSettingsPage() {
                                  />
                             </div>
                         </div>
-                         <Button className="w-full">Save Profile</Button>
+                         <Button className="w-full" onClick={() => toast({ title: "Profile Saved!", description: "Your public profile has been updated."})}>Save Profile</Button>
                     </CardContent>
                 </Card>
 

@@ -1,19 +1,16 @@
+
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileSignature } from 'lucide-react';
-import { useState } from "react";
+import { useState, useContext } from "react";
 import { toast } from "@/hooks/use-toast";
-
-const applications = [
-  { id: 'app-001', loan: 'Stablecoin Personal Loan', partner: 'Stellar Lend', status: 'Approved' },
-  { id: 'app-002', loan: 'AQUA-Backed Loan', partner: 'Aqua Finance', status: 'Pending' },
-  { id: 'app-003', loan: 'Small Business Loan', partner: 'Anchor Finance', status: 'Denied' },
-];
+import { UserContext } from "@/context/user-context";
 
 export function ApplicationStatus() {
+  const { applications } = useContext(UserContext);
   const [signingId, setSigningId] = useState<string | null>(null);
 
   const handleSign = (id: string) => {
@@ -51,27 +48,31 @@ export function ApplicationStatus() {
         <CardDescription>Track the status of your recent loan applications.</CardDescription>
       </CardHeader>
       <CardContent>
-        <ul className="space-y-4">
-          {applications.map((app) => (
-            <li key={app.id} className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold">{app.loan}</p>
-                <p className="text-sm text-muted-foreground">{app.partner}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant={getStatusVariant(app.status)} className={`${getStatusColor(app.status)}`}>
-                  {app.status}
-                </Badge>
-                {app.status === 'Approved' && (
-                  <Button size="sm" onClick={() => handleSign(app.id)} disabled={signingId === app.id}>
-                    <FileSignature className="mr-2 h-4 w-4" />
-                    {signingId === app.id ? "Signing..." : "Sign Contract"}
-                  </Button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+        {applications.length > 0 ? (
+          <ul className="space-y-4">
+            {applications.map((app) => (
+              <li key={app.id} className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold">{app.loan.name}</p>
+                  <p className="text-sm text-muted-foreground">{app.loan.partnerName}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={getStatusVariant(app.status)} className={`${getStatusColor(app.status)}`}>
+                    {app.status}
+                  </Badge>
+                  {app.status === 'Approved' && (
+                    <Button size="sm" onClick={() => handleSign(app.id)} disabled={signingId === app.id}>
+                      <FileSignature className="mr-2 h-4 w-4" />
+                      {signingId === app.id ? "Signing..." : "Sign Contract"}
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-center text-muted-foreground py-8">You have no active applications.</p>
+        )}
       </CardContent>
     </Card>
   );
