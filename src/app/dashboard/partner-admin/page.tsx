@@ -13,12 +13,15 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { CheckCircle, XCircle, FileSignature, Bot } from 'lucide-react';
+import { CheckCircle, XCircle, FileSignature, Bot, MoreHorizontal, User, BarChart, FileText, Link as LinkIcon, Info } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { PartnerPortfolio } from '@/components/partner-portfolio';
 import { LoanActivity } from '@/components/loan-activity';
 import { explainRiskFactors, ExplainRiskFactorsInput, ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const initialApplications = [
   { id: 'app-001', user: 'Anonymous User #4B7A', score: 785, loan: 'Stablecoin Personal Loan', amount: '$10,000', status: 'Pending' },
@@ -34,13 +37,15 @@ type Application = typeof initialApplications[0] & {
 
 export default function PartnerAdminPage() {
     const [applications, setApplications] = useState<Application[]>(initialApplications);
-    const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
+    const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
     const [isSigning, setIsSigning] = useState(false);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
 
     const handleDecision = (id: string, decision: 'Approved' | 'Denied') => {
         setApplications(apps => apps.map(app => app.id === id ? { ...app, status: decision } : app));
         if (decision === 'Approved') {
-            setSelectedApplicationId(id);
+            const appToSign = applications.find(a => a.id === id);
+            if (appToSign) setSelectedApplication(appToSign);
         }
     };
     
@@ -48,34 +53,42 @@ export default function PartnerAdminPage() {
         setIsSigning(true);
         setTimeout(() => {
             setIsSigning(false);
-            setSelectedApplicationId(null);
+            setSelectedApplication(null);
             toast({
                 title: "Contract Signed!",
                 description: "The loan agreement has been executed on the Soroban smart contract.",
             });
         }, 2000);
     }
+    
+    const handleViewProfile = (app: Application) => {
+        setSelectedApplication(app);
+        setIsProfileOpen(true);
+    };
 
     const handleExplainRisk = async (id: string) => {
         const appIndex = applications.findIndex(app => app.id === id);
         if (appIndex === -1) return;
 
         setApplications(apps => apps.map((app, index) => index === appIndex ? { ...app, isExplaining: true, aiExplanation: null } : app));
-
+        
         const appToExplain = applications[appIndex];
         const input: ExplainRiskFactorsInput = {
             score: appToExplain.score,
-            stellarActivity: "Frequent transactions, holds various assets.", // This would be fetched for the user
-            offChainSignals: "Consistent utility payments on time." // This would be fetched for the user
+            stellarActivity: "Frequent transactions, holds various assets.",
+            offChainSignals: "Consistent utility payments on time."
         };
 
         try {
             const result = await explainRiskFactors(input);
             setApplications(apps => apps.map((app, index) => index === appIndex ? { ...app, aiExplanation: result, isExplaining: false } : app));
+            setSelectedApplication(prev => prev ? {...prev, aiExplanation: result, isExplaining: false} : null);
+
         } catch (error) {
             console.error("Error explaining risk factors:", error);
             toast({ variant: 'destructive', title: "AI Error", description: "Could not fetch AI risk explanation." });
             setApplications(apps => apps.map((app, index) => index === appIndex ? { ...app, isExplaining: false } : app));
+            setSelectedApplication(prev => prev ? {...prev, isExplaining: false} : null);
         }
     };
 
@@ -85,94 +98,181 @@ export default function PartnerAdminPage() {
         return 'secondary';
     }
 
-    const getStatusColor = (status: string) => {
-        if (status === 'Approved') return 'bg-green-500 hover:bg-green-600';
-        if (status === 'Denied') return 'bg-red-500 hover:bg-red-600';
-        return '';
+    const getScoreColor = (score: number) => {
+        if (score >= 750) return "text-green-500";
+        if (score >= 650) return "text-yellow-500";
+        return "text-red-500";
     }
-
+    
     const pendingApplications = applications.filter(a => a.status === 'Pending');
 
     return (
         <>
-        <div className="space-y-4">
-            <h1 className="text-3xl font-bold tracking-tight">Partner Loan Dashboard</h1>
-            <p className="text-muted-foreground">Review and manage incoming loan applications and your loan portfolio.</p>
-        </div>
-        <div className="space-y-6 mt-6">
-            <PartnerPortfolio />
-            <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
-                <Card className="xl:col-span-2">
-                    <CardHeader>
-                        <CardTitle>Pending Applications</CardTitle>
-                        <CardDescription>Review new loan requests from prospective borrowers.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {pendingApplications.length > 0 ? pendingApplications.map(app => (
-                            <div key={app.id} className="rounded-lg border p-4 space-y-4">
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                                    <div>
-                                        <p className="font-semibold text-lg">{app.user}</p>
-                                        <p className="text-sm text-muted-foreground">{app.loan} for <span className="font-medium text-foreground">{app.amount}</span></p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-sm text-muted-foreground">Credora Score</p>
-                                        <p className="text-2xl font-bold text-primary">{app.score}</p>
-                                    </div>
-                                </div>
-                                
-                                {app.isExplaining && <Skeleton className="h-12 w-full" />}
-                                {app.aiExplanation && (
-                                    <div className="text-xs text-muted-foreground p-3 bg-muted/50 rounded-md border">
-                                        <p className="font-semibold text-foreground mb-1">AI Risk Insight:</p>
-                                        {app.aiExplanation.explanation}
-                                    </div>
-                                )}
-                                
-                                <div className="flex gap-2 w-full flex-col sm:flex-row">
-                                    <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => handleDecision(app.id, 'Approved')}>
-                                        <CheckCircle className="mr-2 h-4 w-4" /> Approve
-                                    </Button>
-                                    <Button size="sm" variant="destructive" className="flex-1" onClick={() => handleDecision(app.id, 'Denied')}>
-                                        <XCircle className="mr-2 h-4 w-4" /> Deny
-                                    </Button>
-                                    <Button size="sm" variant="outline" className="flex-1" onClick={() => handleExplainRisk(app.id)} disabled={app.isExplaining}>
-                                        <Bot className={`mr-2 h-4 w-4 ${app.isExplaining ? 'animate-pulse' : ''}`} />
-                                        {app.isExplaining ? "Analyzing..." : "Explain Risk"}
-                                    </Button>
-                                </div>
-                            </div>
-                        )) : (
-                            <p className="text-muted-foreground text-center py-4">No pending applications.</p>
-                        )}
-                    </CardContent>
-                </Card>
-                <LoanActivity />
+            <div className="space-y-4">
+                <h1 className="text-3xl font-bold tracking-tight">Partner Dashboard</h1>
+                <p className="text-muted-foreground">Review incoming loan applications, manage active loans, and track your portfolio performance.</p>
             </div>
             
-        </div>
-         <Dialog open={!!selectedApplicationId} onOpenChange={(isOpen) => !isOpen && setSelectedApplicationId(null)}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <FileSignature /> Finalize Loan Agreement
-                    </DialogTitle>
-                    <DialogDescription>
-                        To finalize the loan for {applications.find(a => a.id === selectedApplicationId)?.user}, you must sign the Soroban smart contract. This creates a verifiable agreement on the Stellar network.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4 text-sm">
-                   <p>This action is irreversible and will transfer the loan amount to the user's wallet upon their final confirmation.</p>
-                   <p className="font-medium text-destructive">You are signing to approve a loan of {applications.find(a => a.id === selectedApplicationId)?.amount} for {applications.find(a => a.id === selectedApplicationId)?.loan}.</p>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setSelectedApplicationId(null)} disabled={isSigning}>Cancel</Button>
-                    <Button onClick={handleSignContract} disabled={isSigning}>
-                        {isSigning ? "Executing..." : "Sign & Execute Contract"}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            <PartnerPortfolio />
+
+            <Tabs defaultValue="applications" className="mt-6">
+                <TabsList>
+                    <TabsTrigger value="applications">Loan Applications</TabsTrigger>
+                    <TabsTrigger value="active-loans">Active Loans</TabsTrigger>
+                    <TabsTrigger value="settings">Settings</TabsTrigger>
+                </TabsList>
+                <TabsContent value="applications">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Pending Applications</CardTitle>
+                            <CardDescription>Review new loan requests from prospective borrowers.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Borrower</TableHead>
+                                        <TableHead className="text-center">Credora Score</TableHead>
+                                        <TableHead>Loan</TableHead>
+                                        <TableHead className="text-right">Amount</TableHead>
+                                        <TableHead className="text-center">Status</TableHead>
+                                        <TableHead className="text-right"></TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {pendingApplications.length > 0 ? pendingApplications.map(app => (
+                                        <TableRow key={app.id}>
+                                            <TableCell className="font-medium">{app.user}</TableCell>
+                                            <TableCell className={`text-center font-bold text-xl ${getScoreColor(app.score)}`}>{app.score}</TableCell>
+                                            <TableCell>{app.loan}</TableCell>
+                                            <TableCell className="text-right">{app.amount}</TableCell>
+                                            <TableCell className="text-center">
+                                                <Badge variant={getStatusVariant(app.status)}>{app.status}</Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={() => handleViewProfile(app)}>View Profile</DropdownMenuItem>
+                                                        <DropdownMenuItem className="text-green-600" onClick={() => handleDecision(app.id, 'Approved')}>Approve</DropdownMenuItem>
+                                                        <DropdownMenuItem className="text-red-600" onClick={() => handleDecision(app.id, 'Denied')}>Deny</DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
+                                        </TableRow>
+                                    )) : (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No pending applications.</TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="active-loans">
+                   <LoanActivity />
+                </TabsContent>
+                 <TabsContent value="settings">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Partner Settings</CardTitle>
+                             <CardDescription>Manage your lending preferences and API configurations.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-muted-foreground">Settings for lending preferences, API keys, and webhooks will be available here.</p>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
+        
+            <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+                 <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2"><User /> Borrower Profile</DialogTitle>
+                        <DialogDescription>{selectedApplication?.user} - {selectedApplication?.loan}</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-6 py-4">
+                        <div className="grid grid-cols-2 gap-4 text-center">
+                            <div>
+                                <p className="text-sm text-muted-foreground">Credora Score</p>
+                                <p className={`text-5xl font-bold ${getScoreColor(selectedApplication?.score || 0)}`}>{selectedApplication?.score}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-muted-foreground">Risk Band</p>
+                                <Badge className="text-lg mt-2" variant={selectedApplication && selectedApplication.score > 700 ? 'default' : selectedApplication && selectedApplication.score > 600 ? 'secondary' : 'destructive'}>
+                                    {selectedApplication && selectedApplication.score > 700 ? 'Low' : selectedApplication && selectedApplication.score > 600 ? 'Medium' : 'High'}
+                                </Badge>
+                            </div>
+                        </div>
+                        
+                         <Card>
+                             <CardHeader className="pb-2">
+                                 <CardTitle className="text-base">AI Risk Explanation</CardTitle>
+                             </CardHeader>
+                            <CardContent className="space-y-4">
+                                {selectedApplication?.isExplaining && <Skeleton className="h-12 w-full" />}
+                                {selectedApplication?.aiExplanation && (
+                                    <Alert className="text-sm">
+                                        <Info className="h-4 w-4" />
+                                        <AlertDescription>
+                                           {selectedApplication.aiExplanation.explanation}
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+                                <Button size="sm" variant="outline" className="w-full" onClick={() => handleExplainRisk(selectedApplication!.id)} disabled={selectedApplication?.isExplaining}>
+                                    <Bot className={`mr-2 h-4 w-4 ${selectedApplication?.isExplaining ? 'animate-pulse' : ''}`} />
+                                    {selectedApplication?.isExplaining ? "Analyzing..." : "Regenerate AI Explanation"}
+                                </Button>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                             <CardHeader className="pb-2">
+                                <CardTitle className="text-base">Profile Data Sources</CardTitle>
+                             </CardHeader>
+                            <CardContent className="space-y-3 text-sm">
+                                <div className="flex items-center gap-3"><BarChart className="h-5 w-5 text-primary" /> <span>On-chain Stellar Activity</span></div>
+                                <div className="flex items-center gap-3"><FileText className="h-5 w-5 text-primary" /> <span>Verified Utility Bill Payments</span></div>
+                                <div className="flex items-center gap-3"><LinkIcon className="h-5 w-5 text-primary" /> <span>Linked Off-chain Identifiers</span></div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                    <DialogFooter>
+                         <Button variant="secondary" onClick={() => setIsProfileOpen(false)}>Close</Button>
+                         <Button className="bg-green-600 hover:bg-green-700" onClick={() => { setIsProfileOpen(false); handleDecision(selectedApplication!.id, 'Approved')}}>
+                            <CheckCircle className="mr-2 h-4 w-4" /> Approve Loan
+                         </Button>
+                    </DialogFooter>
+                 </DialogContent>
+            </Dialog>
+
+             <Dialog open={!!selectedApplication && !isProfileOpen} onOpenChange={(isOpen) => !isOpen && setSelectedApplication(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <FileSignature /> Finalize Loan Agreement
+                        </DialogTitle>
+                        <DialogDescription>
+                            To finalize the loan for {selectedApplication?.user}, you must sign the Soroban smart contract. This creates a verifiable agreement on the Stellar network.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4 text-sm">
+                       <p>This action is irreversible and will transfer the loan amount to the user's wallet upon their final confirmation.</p>
+                       <p className="font-medium text-destructive">You are signing to approve a loan of {selectedApplication?.amount} for {selectedApplication?.loan}.</p>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setSelectedApplication(null)} disabled={isSigning}>Cancel</Button>
+                        <Button onClick={handleSignContract} disabled={isSigning}>
+                            {isSigning ? "Executing..." : "Sign & Execute Contract"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

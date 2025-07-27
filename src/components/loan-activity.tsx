@@ -34,9 +34,9 @@ export function LoanActivity() {
     }
 
     const getStatusColor = (status: string) => {
-        if (status === 'Active') return 'bg-blue-500';
-        if (status === 'Paid Off') return 'bg-green-500';
-        if (status === 'Delinquent') return 'bg-yellow-500 text-black';
+        if (status === 'Active') return 'bg-blue-500 hover:bg-blue-600';
+        if (status === 'Paid Off') return 'bg-green-500 hover:bg-green-600';
+        if (status === 'Delinquent') return 'bg-yellow-500 text-black hover:bg-yellow-600';
         return '';
     }
 
@@ -54,6 +54,7 @@ export function LoanActivity() {
             <TableRow>
               <TableHead>User</TableHead>
               <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="text-right">Repaid</TableHead>
               <TableHead className="text-center">Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -62,6 +63,7 @@ export function LoanActivity() {
               <TableRow key={loan.id}>
                 <TableCell className="font-medium">{loan.user}</TableCell>
                 <TableCell className="text-right">${loan.amount.toLocaleString()}</TableCell>
+                <TableCell className="text-right">${loan.repaid.toLocaleString()}</TableCell>
                 <TableCell className="text-center">
                     <Badge variant={getStatusVariant(loan.status)} className={getStatusColor(loan.status)}>
                         {loan.status}
