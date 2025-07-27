@@ -37,6 +37,7 @@ export function Header() {
 
   const settingsPath = isPartnerView ? '/dashboard/partner-admin/settings' : '/dashboard/settings';
   const notifications = isPartnerView ? partnerNotifications : userNotifications;
+  const notificationsPath = isPartnerView ? '/dashboard/partner-admin/notifications' : '/dashboard/notifications';
   const notificationIcon = isPartnerView ? <Building className="mr-2 h-4 w-4" /> : <User className="mr-2 h-4 w-4" />;
 
   return (
@@ -72,7 +73,9 @@ export function Header() {
             ))}
           </div>
            <div className="p-2 border-t">
-              <Button size="sm" variant="link" className="w-full">View all notifications</Button>
+              <Button size="sm" variant="link" className="w-full" asChild>
+                <Link href={notificationsPath}>View all notifications</Link>
+              </Button>
            </div>
         </PopoverContent>
       </Popover>
