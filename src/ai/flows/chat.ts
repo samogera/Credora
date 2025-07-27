@@ -10,26 +10,12 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {MessageData} from 'genkit';
-
-const ChatInputSchema = z.object({
-  history: z
-    .array(
-      z.object({
-        role: z.enum(['user', 'model']),
-        content: z.array(z.object({text: z.string()})),
-      })
-    )
-    .describe('The conversation history.'),
-  message: z.string().describe('The latest message from the user.'),
-});
-export type ChatInput = z.infer<typeof ChatInputSchema>;
-
-export const ChatOutputSchema = z.object({
-  message: z
-    .string()
-    .describe('The response message from the Credora assistant.'),
-});
-export type ChatOutput = z.infer<typeof ChatOutputSchema>;
+import {
+  ChatInput,
+  ChatInputSchema,
+  ChatOutput,
+  ChatOutputSchema,
+} from '@/ai/schemas/chat';
 
 export async function chat(input: ChatInput): Promise<ChatOutput> {
   return chatFlow(input);
