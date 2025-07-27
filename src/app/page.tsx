@@ -35,6 +35,9 @@ export default function LandingPage() {
         </Link>
         <nav className="flex items-center gap-4">
           <Button variant="ghost" asChild>
+            <Link href="/login-partner">Partner Login</Link>
+          </Button>
+          <Button variant="ghost" asChild>
             <Link href="/login">Log In</Link>
           </Button>
           <Button asChild>
