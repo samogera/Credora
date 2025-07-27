@@ -19,16 +19,16 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 
 const wallets = [
-    { name: "Freighter", logo: "https://placehold.co/28x28", "data-ai-hint": "freighter logo" },
-    { name: "Lobstr Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "lobstr logo" },
-    { name: "xBull Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "xbull logo" },
-    { name: "Albedo", logo: "https://placehold.co/28x28", "data-ai-hint": "albedo logo" },
-    { name: "Ledger Nano", logo: "https://placehold.co/28x28", "data-ai-hint": "ledger nano logo" },
-    { name: "Trezor Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "trezor logo" },
-    { name: "Solar Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "solar wallet logo" },
-    { name: "StellarTerm", logo: "https://placehold.co/28x28", "data-ai-hint": "stellarterm logo" },
-    { name: "Trust Wallet", logo: "https://placehold.co/28x28", "data-ai-hint": "trust wallet logo" },
-    { name: "Exodus", logo: "https://placehold.co/28x28", "data-ai-hint": "exodus logo" },
+    { name: "Freighter", logo: "https://placehold.co/28x28/111111/FFFFFF?text=F" },
+    { name: "Lobstr Wallet", logo: "https://placehold.co/28x28/00ACFF/FFFFFF?text=L" },
+    { name: "xBull Wallet", logo: "https://placehold.co/28x28/FF4500/FFFFFF?text=XB" },
+    { name: "Albedo", logo: "https://placehold.co/28x28/000000/FFFFFF?text=A" },
+    { name: "Ledger Nano", logo: "https://placehold.co/28x28/222222/FFFFFF?text=LD" },
+    { name: "Trezor Wallet", logo: "https://placehold.co/28x28/888888/FFFFFF?text=T" },
+    { name: "Solar Wallet", logo: "https://placehold.co/28x28/FFD700/000000?text=S" },
+    { name: "StellarTerm", logo: "https://placehold.co/28x28/00BFFF/FFFFFF?text=ST" },
+    { name: "Trust Wallet", logo: "https://placehold.co/28x28/3375BB/FFFFFF?text=T" },
+    { name: "Exodus", logo: "https://placehold.co/28x28/9933FF/FFFFFF?text=E" },
     { name: "Custom / None of the Above", logo: "/wallets/generic.svg", isCustom: true },
 ].sort((a, b) => {
     if (a.isCustom) return 1;
@@ -132,7 +132,7 @@ export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
                     className="h-14 flex items-center justify-start gap-4 px-4"
                     onClick={() => handleWalletClick(wallet.name, wallet.isCustom)}
                     >
-                    {wallet.isCustom ? <Wallet className="h-6 w-6 text-muted-foreground" /> : <Image src={wallet.logo} alt={wallet.name} width={28} height={28} {...(wallet['data-ai-hint'] && {'data-ai-hint': wallet['data-ai-hint']})} />}
+                    {wallet.isCustom ? <Wallet className="h-6 w-6 text-muted-foreground" /> : <Image src={wallet.logo} alt={wallet.name} width={28} height={28} data-ai-hint="logo" />}
                     <span className="font-semibold">{wallet.name}</span>
                     </Button>
                 ))}

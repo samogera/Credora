@@ -23,6 +23,7 @@ export default function PartnerSettingsPage() {
     // Local state for new product form
     const [newProduct, setNewProduct] = useState({ name: '', rate: '', maxAmount: '', term: '', requirements: '' });
     const [isAdding, setIsAdding] = useState(false);
+    const [localLogo, setLocalLogo] = useState<string | null>(null);
 
 
     const handleLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,14 +31,19 @@ export default function PartnerSettingsPage() {
         if (file) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                updatePartnerProfile({ logo: reader.result as string });
+                setLocalLogo(reader.result as string);
             };
             reader.readAsDataURL(file);
         }
     };
-
-    const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        updatePartnerProfile({ [e.target.id]: e.target.value });
+    
+    const handleSaveProfile = () => {
+        const profileToUpdate = {
+            name: (document.getElementById('name') as HTMLInputElement).value,
+            website: (document.getElementById('website') as HTMLInputElement).value,
+            logo: localLogo || partnerProfile.logo,
+        };
+        updatePartnerProfile(profileToUpdate);
     }
 
     const handleUploadClick = () => {
@@ -53,8 +59,7 @@ export default function PartnerSettingsPage() {
             });
             return;
         }
-        const productToAdd: LoanProduct = {
-            id: `prod-${Date.now()}`,
+        const productToAdd = {
             name: newProduct.name,
             rate: `${parseFloat(newProduct.rate).toFixed(1)}%`,
             maxAmount: parseInt(newProduct.maxAmount, 10),
@@ -145,17 +150,17 @@ export default function PartnerSettingsPage() {
                     <CardContent className="space-y-4">
                         <div className="space-y-1.5">
                             <Label htmlFor="name">Company Name</Label>
-                            <Input id="name" value={partnerProfile.name} onChange={handleProfileChange} />
+                            <Input id="name" defaultValue={partnerProfile.name} />
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor="website">Website URL</Label>
-                            <Input id="website" value={partnerProfile.website} onChange={handleProfileChange} />
+                            <Input id="website" defaultValue={partnerProfile.website} />
                         </div>
                         <div className="space-y-1.5">
                             <Label>Company Logo</Label>
                              <div className="flex items-center gap-4">
                                 <Avatar className="h-16 w-16 rounded-md">
-                                    {partnerProfile.logo ? <Image src={partnerProfile.logo} alt="Company Logo" layout="fill" objectFit="cover" className="rounded-md" /> :
+                                    {localLogo || partnerProfile.logo ? <Image src={localLogo || partnerProfile.logo} alt="Company Logo" layout="fill" objectFit="cover" className="rounded-md" /> :
                                     <AvatarFallback className="rounded-md">
                                         <ImageIcon className="h-8 w-8 text-muted-foreground" />
                                     </AvatarFallback>}
@@ -173,7 +178,7 @@ export default function PartnerSettingsPage() {
                                  />
                             </div>
                         </div>
-                         <Button className="w-full" onClick={() => toast({ title: "Profile Saved!", description: "Your public profile has been updated."})}>Save Profile</Button>
+                         <Button className="w-full" onClick={handleSaveProfile}>Save Profile</Button>
                     </CardContent>
                 </Card>
 
