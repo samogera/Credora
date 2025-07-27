@@ -44,6 +44,7 @@ export const GetLoanRecommendationsOutputSchema = z.object({
   recommendations: z
     .array(LoanRecommendationSchema)
     .describe('A list of personalized loan recommendations.'),
+  improvementSuggestion: z.string().optional().describe("A suggestion for how the user can improve their score if no products are recommended.")
 });
 export type GetLoanRecommendationsOutput = z.infer<
   typeof GetLoanRecommendationsOutputSchema

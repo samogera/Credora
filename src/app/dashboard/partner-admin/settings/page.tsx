@@ -13,11 +13,11 @@ import { PlusCircle, Upload, Image as ImageIcon, Trash2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { UserContext, LoanProduct } from '@/context/user-context';
+import { UserContext } from '@/context/user-context';
 import { toast } from '@/hooks/use-toast';
 
 export default function PartnerSettingsPage() {
-    const { partnerProfile, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct } = useContext(UserContext);
+    const { partner, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct } = useContext(UserContext);
     const fileInputRef = useRef<HTMLInputElement>(null);
     
     // Local state for new product form
@@ -38,10 +38,11 @@ export default function PartnerSettingsPage() {
     };
     
     const handleSaveProfile = () => {
+        if (!partner) return;
         const profileToUpdate = {
             name: (document.getElementById('name') as HTMLInputElement).value,
             website: (document.getElementById('website') as HTMLInputElement).value,
-            logo: localLogo || partnerProfile.logo,
+            logo: localLogo || partner.logo,
         };
         updatePartnerProfile(profileToUpdate);
     }
@@ -74,6 +75,10 @@ export default function PartnerSettingsPage() {
             description: `${productToAdd.name} is now available to users.`
         });
     };
+
+  if (!partner) {
+      return <div>Loading...</div>
+  }
 
   return (
     <div className="space-y-6">
@@ -150,17 +155,17 @@ export default function PartnerSettingsPage() {
                     <CardContent className="space-y-4">
                         <div className="space-y-1.5">
                             <Label htmlFor="name">Company Name</Label>
-                            <Input id="name" defaultValue={partnerProfile.name} />
+                            <Input id="name" defaultValue={partner.name} />
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor="website">Website URL</Label>
-                            <Input id="website" defaultValue={partnerProfile.website} />
+                            <Input id="website" defaultValue={partner.website} />
                         </div>
                         <div className="space-y-1.5">
                             <Label>Company Logo</Label>
                              <div className="flex items-center gap-4">
                                 <Avatar className="h-16 w-16 rounded-md">
-                                    {localLogo || partnerProfile.logo ? <Image src={localLogo || partnerProfile.logo} alt="Company Logo" layout="fill" objectFit="cover" className="rounded-md" /> :
+                                    {localLogo || partner.logo ? <Image src={localLogo || partner.logo} alt="Company Logo" layout="fill" objectFit="cover" className="rounded-md" /> :
                                     <AvatarFallback className="rounded-md">
                                         <ImageIcon className="h-8 w-8 text-muted-foreground" />
                                     </AvatarFallback>}

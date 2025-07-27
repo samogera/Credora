@@ -1,14 +1,15 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback, useContext } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getLoanRecommendations } from "@/ai/flows/get-loan-recommendations";
-import { GetLoanRecommendationsInput, LoanRecommendation } from "@/ai/schemas/loan-recommendations";
+import { GetLoanRecommendationsInput, LoanRecommendation, GetLoanRecommendationsOutput } from "@/ai/schemas/loan-recommendations";
 import { Skeleton } from './ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CheckCircle, Info, RefreshCw, XCircle } from 'lucide-react';
+import { CheckCircle, Info, RefreshCw, XCircle, Lightbulb } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { UserContext } from '@/context/user-context';
@@ -21,7 +22,7 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
     const { partners } = useContext(UserContext);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [recommendations, setRecommendations] = useState<LoanRecommendation[] | null>(null);
+    const [result, setResult] = useState<GetLoanRecommendationsOutput | null>(null);
 
     const handleGetRecommendations = useCallback(async () => {
         setIsLoading(true);
@@ -33,13 +34,13 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                 productName: prod.name,
                 interestRate: prod.rate,
                 maxAmount: prod.maxAmount.toString(),
-                requirements: prod.requirements || `Score > 600`, // Default requirement
+                requirements: prod.requirements || `Score > 650`, // Default requirement
             }))
         );
 
         if (allLoanProducts.length === 0) {
             setIsLoading(false);
-            setRecommendations([]);
+            setResult({ recommendations: [] });
             return;
         }
 
@@ -49,8 +50,8 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
         };
 
         try {
-            const result = await getLoanRecommendations(input);
-            setRecommendations(result.recommendations);
+            const aiResult = await getLoanRecommendations(input);
+            setResult(aiResult);
         } catch (e) {
             console.error("Error getting loan recommendations:", e);
             setError("We couldn't fetch your AI recommendations at this time. Please try again later.");
@@ -68,8 +69,8 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
         handleGetRecommendations();
     }, [handleGetRecommendations]);
 
-    const recommendedLoans = recommendations?.filter(r => r.isRecommended) || [];
-    const otherLoans = recommendations?.filter(r => !r.isRecommended) || [];
+    const recommendedLoans = result?.recommendations?.filter(r => r.isRecommended) || [];
+    const otherLoans = result?.recommendations?.filter(r => !r.isRecommended) || [];
 
     return (
         <Card className="shadow-lg">
@@ -99,9 +100,9 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                         <AlertDescription>{error}</AlertDescription>
                     </Alert>
                 )}
-                {!isLoading && !error && recommendations && (
+                {!isLoading && !error && result && (
                     <div className="space-y-4">
-                        {recommendedLoans.length > 0 && recommendedLoans.map((rec, index) => (
+                        {recommendedLoans.length > 0 ? recommendedLoans.map((rec, index) => (
                              <Alert key={index} className="border-accent/50 text-foreground [&>svg]:text-accent">
                                 <CheckCircle className="h-4 w-4" />
                                 <AlertTitle className="text-accent">
@@ -116,7 +117,17 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                                     </div>
                                 </AlertDescription>
                             </Alert>
-                        ))}
+                        )) : (
+                            result.improvementSuggestion && (
+                                <Alert>
+                                    <Lightbulb className="h-4 w-4" />
+                                    <AlertTitle>No Recommended Loans Yet</AlertTitle>
+                                    <AlertDescription>
+                                        {result.improvementSuggestion}
+                                    </AlertDescription>
+                                </Alert>
+                            )
+                        )}
                          {otherLoans.length > 0 && otherLoans.map((rec, index) => (
                              <Alert key={index} variant="default" className="bg-muted/50">
                                 <Info className="h-4 w-4" />
@@ -128,8 +139,8 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                                 </AlertDescription>
                             </Alert>
                         ))}
-                        {recommendations.length === 0 && (
-                            <p className="text-muted-foreground text-center py-4">No loan products available to recommend.</p>
+                        {result.recommendations.length === 0 && !result.improvementSuggestion && (
+                            <p className="text-muted-foreground text-center py-4">No loan products currently available from our partners.</p>
                         )}
                     </div>
                 )}

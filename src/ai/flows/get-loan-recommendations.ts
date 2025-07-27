@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -36,6 +37,8 @@ Available Loan Products:
 {{/each}}
 
 Analyze each product and create a recommendation object for every loan product provided. For each one, set 'isRecommended' to true if the user's score meets or exceeds the product's requirements. Provide a short 'reason' (max 20 words) explaining why it is or isn't a good fit. Focus on the user's score and the product requirements in your reasoning.
+
+If no products are recommended, provide a concise, actionable 'improvementSuggestion' (max 30 words) for the user on how they can improve their score to qualify for loans. For example: "Try improving your on-chain transaction history or connecting a utility bill to potentially qualify for more products."
 `,
 });
 

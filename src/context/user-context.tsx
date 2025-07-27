@@ -86,7 +86,6 @@ interface UserContextType {
     addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'score' | 'loan' | 'createdAt'> & { loan: Omit<Application['loan'], 'partnerId'>}) => Promise<void>;
     updateApplicationStatus: (id: string, status: 'Approved' | 'Denied') => void;
     partners: Partner[];
-    partnerProfile: Omit<Partner, 'products' | 'description' | 'id'>;
     updatePartnerProfile: (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => void;
     partnerProducts: LoanProduct[];
     addPartnerProduct: (product: Omit<LoanProduct, 'id'>) => void;
@@ -111,7 +110,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loanActivity, setLoanActivity] = useState<LoanActivityItem[]>([]);
     
-    const [partnerProfile, setPartnerProfileState] = useState<Omit<Partner, 'products' | 'description' | 'id'>>({ name: "", logo: "", website: ""});
     const [partnerProducts, setPartnerProducts] = useState<LoanProduct[]>([]);
 
      const setupAnonymousUser = useCallback(async () => {
@@ -141,6 +139,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 setUser(currentUser);
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
                 const partnerDocSnap = await getDoc(partnerDocRef);
+
                 if (partnerDocSnap.exists()) {
                     setIsPartner(true);
                     setPartner({ id: currentUser.uid, ...partnerDocSnap.data() } as Partner);
@@ -199,13 +198,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
 
         if (isPartner && partner) {
-             unsubPartnerProfile = onSnapshot(doc(db, "partners", partner.id), (doc) => {
-                if(doc.exists()){
-                    const data = doc.data();
-                    setPartnerProfileState({name: data.name, logo: data.logo, website: data.website});
-                }
-            });
-
              unsubPartnerProducts = onSnapshot(collection(db, "partners", partner.id, "products"), (snapshot) => {
                  setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
             });
@@ -396,24 +388,40 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
     
     const partnerSignup = async (email: string, pass: string, name: string, website: string) => {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-        const newPartner = {
-            name,
-            website,
-            logo: `https://placehold.co/40x40/111111/FFFFFF?text=${name.substring(0,2).toUpperCase()}`,
-            description: `A new lending partner in the Credora ecosystem.`,
-            createdAt: serverTimestamp()
-        };
-        await setDoc(doc(db, "partners", userCredential.user.uid), newPartner);
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+            const newPartner = {
+                name,
+                website,
+                logo: `https://placehold.co/40x40/111111/FFFFFF?text=${name.substring(0,2).toUpperCase()}`,
+                description: `A new lending partner in the Credora ecosystem.`,
+                createdAt: serverTimestamp()
+            };
+            await setDoc(doc(db, "partners", userCredential.user.uid), newPartner);
+            // Manually update state to reflect new partner status immediately
+            setPartner({ id: userCredential.user.uid, ...newPartner, products: [] } as Partner);
+            setIsPartner(true);
+            setUser(userCredential.user);
+        } catch (error: any) {
+            console.error("Partner signup error:", error);
+            throw new Error(error.message || "Failed to create partner account.");
+        }
     }
     
     const partnerLogin = async (email: string, pass: string) => {
-        await signInWithEmailAndPassword(auth, email, pass);
+        try {
+            await signInWithEmailAndPassword(auth, email, pass);
+            // onAuthStateChanged will handle the state updates
+        } catch (error: any) {
+            console.error("Partner login error:", error);
+            throw new Error(error.message || "Failed to log in.");
+        }
     }
 
     const logout = async () => {
         const wasPartner = isPartner;
         await signOut(auth);
+        // Reset all states
         setUser(null);
         setPartner(null);
         setIsPartner(false);
@@ -421,11 +429,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setNotifications([]);
         setLoanActivity([]);
         setPartnerProducts([]);
-        setPartnerProfileState({ name: "", logo: "", website: ""});
+        setAvatarUrlState(null);
 
-        if (wasPartner) {
-           await setupAnonymousUser();
-        }
+        // After logging out a partner, sign in an anonymous user for the public pages
+        await setupAnonymousUser();
     };
 
     const contextValue = {
@@ -442,7 +449,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         addApplication,
         updateApplicationStatus,
         partners,
-        partnerProfile,
         updatePartnerProfile,
         partnerProducts,
         addPartnerProduct,

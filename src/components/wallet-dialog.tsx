@@ -19,9 +19,9 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 
 const wallets = [
-    { name: "Lobstr Wallet", logo: "https://placehold.co/28x28/00ACFF/FFFFFF?text=L", dataAiHint: "logo" },
-    { name: "Ledger Nano", logo: "https://placehold.co/28x28/222222/FFFFFF?text=LD", dataAiHint: "logo hardware" },
-    { name: "Trust Wallet", logo: "https://placehold.co/28x28/3375BB/FFFFFF?text=T", dataAiHint: "logo wallet" },
+    { name: "Lobstr Wallet", logo: "/wallets/lobstr.svg", dataAiHint: "logo" },
+    { name: "Ledger Nano", logo: "/wallets/ledger.svg", dataAiHint: "logo hardware" },
+    { name: "Trust Wallet", logo: "/wallets/trust.svg", dataAiHint: "logo wallet" },
     { name: "Custom address / other", isCustom: true, dataAiHint: "logo custom" },
 ];
 
