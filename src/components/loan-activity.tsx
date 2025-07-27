@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useContext } from 'react';
 import {
   Table,
   TableHeader,
@@ -17,15 +18,11 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-
-const loanData = [
-    { id: "loan-001", user: "User #4B7A", amount: 10000, interestRate: 5.0, term: 12, status: "Active", repaid: 2500, interestAccrued: 125.50 },
-    { id: "loan-002", user: "User #1A5D", amount: 5000, interestRate: 3.5, term: 24, status: "Active", repaid: 1000, interestAccrued: 45.20 },
-    { id: "loan-003", user: "User #8C2F", amount: 15000, interestRate: 6.2, term: 36, status: "Paid Off", repaid: 15000, interestAccrued: 1450.80 },
-    { id: "loan-004", user: "User #D9E1", amount: 7500, interestRate: 4.2, term: 18, status: "Delinquent", repaid: 1500, interestAccrued: 210.00 },
-];
+import { UserContext } from '@/context/user-context';
 
 export function LoanActivity() {
+    const { loanActivity } = useContext(UserContext);
+
     const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
         if (status === 'Active') return 'default';
         if (status === 'Paid Off') return 'secondary';
@@ -59,18 +56,24 @@ export function LoanActivity() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loanData.map((loan) => (
+            {loanActivity.length > 0 ? loanActivity.map((loan) => (
               <TableRow key={loan.id}>
-                <TableCell className="font-medium">{loan.user}</TableCell>
+                <TableCell className="font-medium">{loan.user.displayName}</TableCell>
                 <TableCell className="text-right">${loan.amount.toLocaleString()}</TableCell>
-                <TableCell className="text-right">${loan.repaid.toLocaleString()}</TableCell>
+                <TableCell className="text-right">${(loan.repaid || 0).toLocaleString()}</TableCell>
                 <TableCell className="text-center">
                     <Badge variant={getStatusVariant(loan.status)} className={getStatusColor(loan.status)}>
                         {loan.status}
                     </Badge>
                 </TableCell>
               </TableRow>
-            ))}
+            )) : (
+                <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                        No loan activity yet.
+                    </TableCell>
+                </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent>

@@ -1,12 +1,12 @@
 
 "use client";
 
-import { createContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, storage, auth } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, orderBy, writeBatch, documentId, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, documentId, getDoc } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { onAuthStateChanged, User, signInAnonymously } from 'firebase/auth';
+import { onAuthStateChanged, User, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 
 // Types
@@ -20,12 +20,24 @@ export type LoanProduct = {
 };
 
 export type Partner = {
-    id: string;
+    id: string; // This will be the Firebase Auth UID
     name: string;
     logo: string;
     description: string;
-    products: LoanProduct[];
     website: string;
+    products: LoanProduct[];
+};
+
+export type LoanActivityItem = {
+    id: string;
+    user: {
+        displayName: string;
+    };
+    amount: number;
+    repaid?: number;
+    interestAccrued?: number;
+    status: 'Active' | 'Paid Off' | 'Delinquent';
+    createdAt: Date;
 };
 
 export type Application = {
@@ -40,6 +52,7 @@ export type Application = {
         id: string;
         name: string;
         partnerName: string;
+        partnerId: string;
     };
     amount: number;
     status: 'Pending' | 'Approved' | 'Denied';
@@ -50,7 +63,7 @@ export type Application = {
 export type Notification = {
     id: string;
     for: 'user' | 'partner';
-    userId: string; // ID of user or partner firm
+    userId: string; // ID of user (Firebase UID) or partner (Firebase UID)
     type: 'new_application' | 'approval' | 'denial' | 'info';
     title: string;
     message: string;
@@ -60,10 +73,15 @@ export type Notification = {
 
 interface UserContextType {
     user: User | null;
+    partner: Partner | null;
+    isPartner: boolean;
+    logout: () => void;
+    partnerLogin: (email: string, pass: string) => Promise<void>;
+    partnerSignup: (email: string, pass: string, name: string, website: string) => Promise<void>;
     avatarUrl: string | null;
     setAvatarUrl: (url: string) => void;
     applications: Application[];
-    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' >) => void;
+    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'score'>) => void;
     updateApplicationStatus: (id: string, status: 'Approved' | 'Denied') => void;
     partners: Partner[];
     partnerProfile: Omit<Partner, 'products' | 'description' | 'id'>;
@@ -74,115 +92,69 @@ interface UserContextType {
     notifications: Notification[];
     addNotification: (notification: Omit<Notification, 'id' | 'timestamp'>) => void;
     markNotificationsAsRead: (role: 'user' | 'partner') => void;
+    loanActivity: LoanActivityItem[];
 }
-
-const initialPartners: Partner[] = [
-    {
-      id: "partner-1",
-      name: "Stellar Lend",
-      logo: "https://placehold.co/40x40/111111/FFFFFF?text=SL",
-      description: "Low-interest loans for Stellar ecosystem projects.",
-      website: "https://stellarlend.finance",
-      products: [
-        { id: "sl-001", name: "Ecosystem Grant Loan", rate: "3.5%", maxAmount: 5000, term: 24, requirements: "Credit score above 750" },
-        { id: "sl-002", name: "Stablecoin Personal Loan", rate: "5.0%", maxAmount: 10000, term: 12, requirements: "Credit score above 700" },
-      ],
-    },
-    {
-      id: "partner-2",
-      name: "Aqua Finance",
-      logo: "https://placehold.co/40x40/00ACFF/FFFFFF?text=AF",
-      description: "DeFi lending powered by the AQUA token.",
-      website: "https://aqua.network",
-      products: [
-          { id: "af-001", name: "AQUA-Backed Loan", rate: "4.2%", maxAmount: 7500, term: 18, requirements: "Credit score above 680" },
-          { id: "af-002", name: "Liquidity Provider Loan", rate: "6.1%", maxAmount: 25000, term: 36, requirements: "Credit score above 720" },
-      ],
-    },
-    {
-      id: "partner-3",
-      name: "Anchor Finance",
-      logo: "https://placehold.co/40x40/FF4500/FFFFFF?text=AN",
-      description: "Your anchor in the world of decentralized finance.",
-      website: "https://anchor.finance",
-      products: [
-          { id: "an-001", name: "Small Business Loan", rate: "7.5%", maxAmount: 50000, term: 48, requirements: "Credit score above 650" },
-      ],
-    },
-];
 
 export const UserContext = createContext<UserContextType>({} as UserContextType);
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
+    const [partner, setPartner] = useState<Partner | null>(null);
+    const [isPartner, setIsPartner] = useState(false);
+    
     const [avatarUrl, setAvatarUrlState] = useState<string | null>(null);
     const [applications, setApplications] = useState<Application[]>([]);
     const [partners, setPartners] = useState<Partner[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [loanActivity, setLoanActivity] = useState<LoanActivityItem[]>([]);
     
-    // This simulates the single partner logged in - we'll assume partner-1
-    const [partnerProfile, setPartnerProfileState] = useState({ name: "Stellar Lend", logo: "https://placehold.co/40x40/111111/FFFFFF?text=SL", website: "https://stellarlend.finance" });
+    const [partnerProfile, setPartnerProfileState] = useState<Omit<Partner, 'products' | 'description' | 'id'>>({ name: "", logo: "", website: ""});
     const [partnerProducts, setPartnerProducts] = useState<LoanProduct[]>([]);
 
-    // Seed data and sign in anonymously on initial load
-    useEffect(() => {
-        const setup = async () => {
-            try {
-                // Ensure user is signed in anonymously for read/write access
-                if (!auth.currentUser) {
-                    await signInAnonymously(auth);
-                }
-                
-                // Seed initial data if partners collection is empty
-                const partnersRef = collection(db, "partners");
-                const snapshot = await getDocs(partnersRef);
-
-                if (snapshot.empty) {
-                    console.log("Seeding partners...");
-                    const batch = writeBatch(db);
-                    initialPartners.forEach((partner) => {
-                        const partnerDocRef = doc(db, "partners", partner.id);
-                        batch.set(partnerDocRef, { name: partner.name, logo: partner.logo, description: partner.description, website: partner.website });
-                        partner.products.forEach((product) => {
-                            const productDocRef = doc(collection(db, "partners", partner.id, "products"), product.id);
-                            const { id, ...productData } = product;
-                            batch.set(productDocRef, productData);
-                        });
-                    });
-                    await batch.commit();
-                    console.log("Seeding complete.");
-                }
-            } catch (error) {
-                console.error("Error during initial setup:", error);
+     const setupAnonymousUser = useCallback(async () => {
+        if (!auth.currentUser) {
+            const cred = await signInAnonymously(auth);
+            const userDocRef = doc(db, "users", cred.user.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            if (!userDocSnap.exists()) {
+                await setDoc(userDocRef, {
+                    displayName: `User #${cred.user.uid.substring(0, 4)}`,
+                    avatarUrl: null
+                });
             }
-        };
-        setup();
+        }
     }, []);
 
-    // Set up auth state change listener
+    useEffect(() => {
+        setupAnonymousUser();
+    }, [setupAnonymousUser]);
+
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            setUser(currentUser);
-            if (currentUser && !currentUser.isAnonymous) {
-                // Create user doc if it doesn't exist
-                const userDocRef = doc(db, "users", currentUser.uid);
-                const userDocSnap = await getDoc(userDocRef);
-                if (!userDocSnap.exists()) {
-                    await setDoc(userDocRef, {
-                        email: currentUser.email,
-                        displayName: currentUser.displayName || `User #${currentUser.uid.substring(0,4)}`,
-                        avatarUrl: null
-                    }, { merge: true });
+            if (currentUser) {
+                setUser(currentUser);
+                const partnerDocRef = doc(db, "partners", currentUser.uid);
+                const partnerDocSnap = await getDoc(partnerDocRef);
+                if (partnerDocSnap.exists()) {
+                    setIsPartner(true);
+                    setPartner({ id: currentUser.uid, ...partnerDocSnap.data() } as Partner);
+                } else {
+                    setIsPartner(false);
+                    setPartner(null);
                 }
+            } else {
+                setUser(null);
+                setIsPartner(false);
+                setPartner(null);
+                // Ensure there's always a logged-in user for reads
+                setupAnonymousUser();
             }
         });
         return () => unsubscribe();
-    }, []);
+    }, [setupAnonymousUser]);
     
     // Listeners for all data - requires authenticated user
     useEffect(() => {
-        if (!user) return; // Don't run listeners until user is authenticated
-
         // Listener for all partners and their products (for user view)
         const unsubPartners = onSnapshot(collection(db, "partners"), (snapshot) => {
             const partnerPromises = snapshot.docs.map(async (pDoc) => {
@@ -199,52 +171,78 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             Promise.all(partnerPromises).then(setPartners);
         }, (error) => console.error("Partner listener error: ", error));
 
-        // This effect is for the logged-in partner view (partner-1)
-        const partnerId = "partner-1"; 
-        const unsubPartnerProfile = onSnapshot(doc(db, "partners", partnerId), (doc) => {
-            if(doc.exists()){
-                const data = doc.data();
-                setPartnerProfileState({name: data.name, logo: data.logo, website: data.website});
-            }
-        });
+        if (isPartner && partner) {
+            // Partner-specific listeners
+            const unsubPartnerProfile = onSnapshot(doc(db, "partners", partner.id), (doc) => {
+                if(doc.exists()){
+                    const data = doc.data();
+                    setPartnerProfileState({name: data.name, logo: data.logo, website: data.website});
+                }
+            });
 
-        const unsubPartnerProducts = onSnapshot(collection(db, "partners", partnerId, "products"), (snapshot) => {
-             setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
-        });
+            const unsubPartnerProducts = onSnapshot(collection(db, "partners", partner.id, "products"), (snapshot) => {
+                 setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
+            });
+            
+             const partnerAppsQuery = query(collection(db, "applications"), where("loan.partnerId", "==", partner.id));
+             const unsubPartnerApps = onSnapshot(partnerAppsQuery, (snapshot) => {
+                 const appsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application));
+                 setApplications(appsData);
+             }, (error) => console.error("Partner apps listener error: ", error));
+             
+             // Simple listener for all loans to derive partner's loan activity
+             const unsubLoanActivity = onSnapshot(collection(db, "loanActivity"), (snapshot) => {
+                setLoanActivity(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt.toDate()}) as LoanActivityItem));
+             }, (error) => console.error("Loan activity listener error: ", error));
 
-        // Listener for all applications (for partner view)
-        const unsubApps = onSnapshot(query(collection(db, "applications"), orderBy("status", "asc")), (snapshot) => {
-            const appsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application));
-            setApplications(appsData);
-        }, (error) => console.error("All apps listener error: ", error));
-        
-        // Listener for all notifications (filtered on client)
-        const unsubNotifs = onSnapshot(query(collection(db, "notifications"), orderBy("timestamp", "desc")), (snapshot) => {
-            const allNotifs = snapshot.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp.toDate() } as Notification));
-            setNotifications(allNotifs);
-        }, (error) => console.error("All notifications listener error: ", error));
 
-        // Listener for specific user's avatar
-        let unsubUser: () => void = () => {};
-        if (!user.isAnonymous) {
-            const userDocRef = doc(db, "users", user.uid);
-            unsubUser = onSnapshot(userDocRef, (doc) => {
+             return () => {
+                unsubPartners();
+                unsubPartnerProfile();
+                unsubPartnerProducts();
+                unsubPartnerApps();
+                unsubLoanActivity();
+             };
+
+        } else if(user && !isPartner) {
+            // User-specific listeners
+            const userAppsQuery = query(collection(db, "applications"), where("userId", "==", user.uid));
+            const unsubUserApps = onSnapshot(userAppsQuery, (snapshot) => {
+                const appsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application));
+                setApplications(appsData);
+            }, (error) => console.error("User apps listener error: ", error));
+            
+            const unsubUser = onSnapshot(doc(db, "users", user.uid), (doc) => {
                 if (doc.exists()) {
                     setAvatarUrlState(doc.data().avatarUrl || null);
                 }
             });
+
+            return () => {
+                unsubPartners();
+                unsubUserApps();
+                unsubUser();
+            };
         }
 
-        return () => {
-            unsubPartners();
-            unsubPartnerProfile();
-            unsubPartnerProducts();
-            unsubApps();
-            unsubNotifs();
-            unsubUser();
-        };
-    }, [user]);
+        return () => { unsubPartners(); }
+    }, [user, isPartner, partner]);
+    
+    // Notifications listener
+    useEffect(() => {
+        if (!user) return;
+        
+        const relevantId = isPartner ? partner?.id : user.uid;
+        if (!relevantId) return;
 
+        const notifsQuery = query(collection(db, "notifications"), where("userId", "==", relevantId));
+        const unsubNotifs = onSnapshot(notifsQuery, (snapshot) => {
+            const allNotifs = snapshot.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp.toDate() } as Notification)).sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
+            setNotifications(allNotifs);
+        }, (error) => console.error("Notifications listener error: ", error));
+
+        return () => unsubNotifs();
+    }, [user, isPartner, partner]);
 
     const setAvatarUrl = async (url: string) => {
         if (!user || user.isAnonymous) return;
@@ -264,7 +262,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     }
 
-    const addApplication = async (app: Omit<Application, 'id' | 'user' | 'userId' >) => {
+    const addApplication = async (app: Omit<Application, 'id' | 'user' | 'userId' | 'score'>) => {
         if (!user || user.isAnonymous) {
             toast({ variant: 'destructive', title: 'Login Required', description: 'You must be logged in to apply.' });
             return;
@@ -277,6 +275,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         const newApp = {
             ...app,
+            score: Math.floor(Math.random() * (850 - 550 + 1)) + 550, // Dummy score
             userId: user.uid,
             user: {
                 displayName: userDoc.data()?.displayName || `User #${user.uid.substring(0,4)}`,
@@ -293,7 +292,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         
         await updateDoc(appRef, { status });
 
-        // Add notification for the user
+        if (status === 'Approved') {
+            await addDoc(collection(db, 'loanActivity'), {
+                user: { displayName: appToUpdate.user.displayName },
+                amount: appToUpdate.amount,
+                repaid: 0,
+                interestAccrued: 0,
+                status: 'Active',
+                createdAt: new Date(),
+            });
+        }
+
         await addNotification({
             for: 'user',
             userId: appToUpdate.userId,
@@ -305,13 +314,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     };
     
     const updatePartnerProfile = async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
-        const partnerId = "partner-1";
-        const partnerRef = doc(db, "partners", partnerId);
+        if (!partner) return;
+        const partnerRef = doc(db, "partners", partner.id);
 
         try {
             let profileToUpdate = {...profile};
             if (profile.logo && profile.logo.startsWith('data:image')) {
-                const storageRef = ref(storage, `partners/${partnerId}/logo.png`);
+                const storageRef = ref(storage, `partners/${partner.id}/logo.png`);
                 const snapshot = await uploadString(storageRef, profile.logo, 'data_url');
                 profileToUpdate.logo = await getDownloadURL(snapshot.ref);
             }
@@ -325,13 +334,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
     
     const addPartnerProduct = async (product: Omit<LoanProduct, 'id'>) => {
-        const partnerId = "partner-1";
-        await addDoc(collection(db, "partners", partnerId, "products"), product);
+        if (!partner) return;
+        await addDoc(collection(db, "partners", partner.id, "products"), product);
     }
     
     const removePartnerProduct = async (id: string) => {
-        const partnerId = "partner-1";
-        await deleteDoc(doc(db, "partners", partnerId, "products", id));
+        if (!partner) return;
+        await deleteDoc(doc(db, "partners", partner.id, "products", id));
         toast({ title: "Product Removed", variant: "destructive" });
     }
 
@@ -340,27 +349,51 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const markNotificationsAsRead = async (role: 'user' | 'partner') => {
-       let notifsToUpdateQuery;
-       const notifsRef = collection(db, 'notifications');
-       
-       const relevantNotifications = notifications.filter(n => 
-            n.for === role && 
-            !n.read && 
-            (role === 'partner' || (role === 'user' && user && n.userId === user.uid))
-        );
+       const relevantId = isPartner ? partner?.id : user?.uid;
+       if (!relevantId) return;
 
-       if (relevantNotifications.length === 0) return;
+       const notifsToMark = notifications.filter(n => n.userId === relevantId && !n.read);
+       if (notifsToMark.length === 0) return;
 
        const batch = writeBatch(db);
-       relevantNotifications.forEach(n => {
+       notifsToMark.forEach(n => {
            const docRef = doc(db, 'notifications', n.id);
            batch.update(docRef, { read: true });
        });
        await batch.commit();
     }
+    
+    const partnerSignup = async (email: string, pass: string, name: string, website: string) => {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+        const newPartner = {
+            name,
+            website,
+            logo: `https://placehold.co/40x40/111111/FFFFFF?text=${name.substring(0,2).toUpperCase()}`,
+            description: `A new lending partner in the Credora ecosystem.`
+        };
+        await setDoc(doc(db, "partners", userCredential.user.uid), newPartner);
+    }
+    
+    const partnerLogin = async (email: string, pass: string) => {
+        await signInWithEmailAndPassword(auth, email, pass);
+    }
+
+    const logout = async () => {
+        await signOut(auth);
+        setUser(null);
+        setPartner(null);
+        setIsPartner(false);
+        // re-establish anonymous user for public reads
+        await setupAnonymousUser();
+    };
 
     const contextValue = {
         user,
+        partner,
+        isPartner,
+        logout,
+        partnerLogin,
+        partnerSignup,
         avatarUrl,
         setAvatarUrl,
         applications,
@@ -374,7 +407,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         removePartnerProduct,
         notifications,
         addNotification,
-        markNotificationsAsRead
+        markNotificationsAsRead,
+        loanActivity,
     };
 
     return (

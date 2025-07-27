@@ -1,13 +1,49 @@
+
+"use client";
+
+import { useState, useContext } from 'react';
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Building } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
 import { Logo } from "@/components/logo";
+import { UserContext } from "@/context/user-context";
+import { toast } from "@/hooks/use-toast";
 
 export default function SignupPartnerPage() {
+    const { partnerSignup } = useContext(UserContext);
+    const [companyName, setCompanyName] = useState("");
+    const [website, setWebsite] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const router = useRouter();
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        try {
+            await partnerSignup(email, password, companyName, website);
+            toast({
+                title: "Registration Successful!",
+                description: "Your partner account has been created. You are now being redirected."
+            });
+            router.push('/dashboard/partner-admin');
+        } catch (error: any) {
+             toast({
+                variant: 'destructive',
+                title: 'Registration Failed',
+                description: error.message || 'An unexpected error occurred.'
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-background py-12">
       <div className="w-full max-w-lg p-8 space-y-8">
@@ -22,33 +58,35 @@ export default function SignupPartnerPage() {
         </div>
         
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Building /> Partner Registration</CardTitle>
-            <CardDescription>Fill out the form below to apply to our partner program.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="company-name">Company Name</Label>
-                    <Input id="company-name" placeholder="Your Company, Inc." required />
+          <form onSubmit={handleSubmit}>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Building /> Partner Registration</CardTitle>
+                <CardDescription>Fill out the form below to create your partner account.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="company-name">Company Name</Label>
+                        <Input id="company-name" placeholder="Your Company, Inc." required value={companyName} onChange={e => setCompanyName(e.target.value)} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="company-website">Company Website</Label>
+                        <Input id="company-website" placeholder="https://example.com" required value={website} onChange={e => setWebsite(e.target.value)} />
+                    </div>
                 </div>
                  <div className="space-y-2">
-                    <Label htmlFor="company-website">Company Website</Label>
-                    <Input id="company-website" placeholder="https://example.com" required />
+                    <Label htmlFor="contact-email">Contact Email</Label>
+                    <Input id="contact-email" type="email" placeholder="contact@yourcompany.com" required value={email} onChange={e => setEmail(e.target.value)} />
                 </div>
-            </div>
-             <div className="space-y-2">
-                <Label htmlFor="contact-email">Contact Email</Label>
-                <Input id="contact-email" type="email" placeholder="contact@yourcompany.com" required />
-            </div>
-             <div className="space-y-2">
-                <Label htmlFor="use-case">Tell us about your use case</Label>
-                <Textarea id="use-case" placeholder="Describe how your organization would leverage Credora scores..." required />
-            </div>
-            <Button className="w-full" asChild>
-                <Link href="/dashboard/partner-admin">Submit Application</Link>
-            </Button>
-          </CardContent>
+                 <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input id="password" type="password" placeholder="••••••••" required value={password} onChange={e => setPassword(e.target.value)} />
+                </div>
+                <Button className="w-full" type="submit" disabled={isLoading}>
+                    {isLoading ? "Creating Account..." : "Create Partner Account"}
+                </Button>
+            </CardContent>
+          </form>
         </Card>
         
         <p className="text-center text-sm text-muted-foreground">

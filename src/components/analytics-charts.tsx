@@ -1,8 +1,9 @@
 
 "use client"
 
-import { TrendingUp } from "lucide-react"
-import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis } from "recharts"
+import { useMemo, useContext } from "react";
+import { TrendingUp } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis } from "recharts";
 import {
   Card,
   CardContent,
@@ -10,49 +11,91 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/components/ui/card";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
-} from "@/components/ui/chart"
-
-const loanStatusData = [
-  { status: "Active", count: 120, fill: "var(--color-active)" },
-  { status: "Paid Off", count: 75, fill: "var(--color-paid)" },
-  { status: "Delinquent", count: 15, fill: "var(--color-delinquent)" },
-];
-const loanStatusConfig = {
-  count: { label: "Loans" },
-  active: { label: "Active", color: "hsl(var(--chart-2))" },
-  paid: { label: "Paid Off", color: "hsl(var(--chart-3))" },
-  delinquent: { label: "Delinquent", color: "hsl(var(--chart-5))" },
-}
-
-const monthlyVolumeData = [
-  { month: "January", loans: 186 },
-  { month: "February", loans: 305 },
-  { month: "March", loans: 237 },
-  { month: "April", loans: 273 },
-  { month: "May", loans: 209 },
-  { month: "June", loans: 214 },
-]
-const monthlyVolumeConfig = {
-  loans: {
-    label: "Loans",
-    color: "hsl(var(--chart-1))",
-  },
-}
+} from "@/components/ui/chart";
+import { UserContext } from "@/context/user-context";
+import { startOfMonth, format } from "date-fns";
 
 export function AnalyticsCharts() {
+  const { loanActivity } = useContext(UserContext);
+
+  const loanStatusData = useMemo(() => {
+    const statuses = { Active: 0, "Paid Off": 0, Delinquent: 0 };
+    loanActivity.forEach(loan => {
+      if (loan.status in statuses) {
+        statuses[loan.status as keyof typeof statuses]++;
+      }
+    });
+    return [
+      { status: "Active", count: statuses.Active, fill: "var(--color-active)" },
+      { status: "Paid Off", count: statuses["Paid Off"], fill: "var(--color-paid)" },
+      { status: "Delinquent", count: statuses.Delinquent, fill: "var(--color-delinquent)" },
+    ];
+  }, [loanActivity]);
+
+  const monthlyVolumeData = useMemo(() => {
+    const volumeByMonth: { [key: string]: number } = {};
+    loanActivity.forEach(loan => {
+      // Assuming loan object has a 'createdAt' timestamp
+      if (loan.createdAt) {
+        const month = format(startOfMonth(loan.createdAt), "yyyy-MM");
+        if (!volumeByMonth[month]) {
+          volumeByMonth[month] = 0;
+        }
+        volumeByMonth[month]++;
+      }
+    });
+    
+    // Get last 6 months
+    const last6Months = Array.from({ length: 6 }).map((_, i) => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        return format(startOfMonth(d), "yyyy-MM");
+    }).reverse();
+
+
+    return last6Months.map(monthStr => {
+      return {
+        month: format(new Date(monthStr), "MMMM"),
+        loans: volumeByMonth[monthStr] || 0,
+      };
+    });
+  }, [loanActivity]);
+
+  const roi = useMemo(() => {
+    const totalPrincipal = loanActivity.reduce((sum, loan) => sum + loan.amount, 0);
+    const interestEarned = loanActivity.reduce((sum, loan) => sum + (loan.interestAccrued || 0), 0);
+    if (totalPrincipal === 0) return 0;
+    return (interestEarned / totalPrincipal) * 100;
+  }, [loanActivity]);
+
+
+  const loanStatusConfig = {
+    count: { label: "Loans" },
+    active: { label: "Active", color: "hsl(var(--chart-2))" },
+    paid: { label: "Paid Off", color: "hsl(var(--chart-3))" },
+    delinquent: { label: "Delinquent", color: "hsl(var(--chart-5))" },
+  }
+
+  const monthlyVolumeConfig = {
+    loans: {
+      label: "Loans",
+      color: "hsl(var(--chart-1))",
+    },
+  }
+
   return (
     <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="sm:col-span-2">
             <CardHeader>
             <CardTitle>Monthly Loan Volume</CardTitle>
-            <CardDescription>January - June 2024</CardDescription>
+            <CardDescription>Last 6 Months</CardDescription>
             </CardHeader>
             <CardContent>
             <ChartContainer config={monthlyVolumeConfig} className="min-h-64">
@@ -74,9 +117,6 @@ export function AnalyticsCharts() {
             </ChartContainer>
             </CardContent>
             <CardFooter className="flex-col items-start gap-2 text-sm">
-            <div className="flex gap-2 font-medium leading-none">
-                Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
-            </div>
             <div className="leading-none text-muted-foreground">
                 Showing total loans issued for the last 6 months
             </div>
@@ -111,9 +151,9 @@ export function AnalyticsCharts() {
                 </PieChart>
                 </ChartContainer>
             </CardContent>
-            <CardFooter className="flex-col gap-2 text-sm">
+             <CardFooter className="flex-col gap-2 text-sm">
                  <div className="leading-none text-muted-foreground">
-                    Total active loans: 210
+                    Total loans: {loanActivity.length}
                 </div>
             </CardFooter>
         </Card>
@@ -123,12 +163,12 @@ export function AnalyticsCharts() {
                 <CardDescription>Year-to-date return on investment</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="text-4xl font-bold">14.2%</div>
-                <p className="text-xs text-muted-foreground">+2.1% from last quarter</p>
+                <div className="text-4xl font-bold">{roi.toFixed(1)}%</div>
+                <p className="text-xs text-muted-foreground">Based on interest vs principal</p>
             </CardContent>
              <CardFooter className="flex-col items-start gap-2 text-sm">
                 <div className="flex gap-2 font-medium leading-none text-green-500">
-                    Exceeding targets <TrendingUp className="h-4 w-4" />
+                    Calculated in real-time <TrendingUp className="h-4 w-4" />
                 </div>
                 <div className="leading-none text-muted-foreground">
                     Based on interest earned vs. defaults.

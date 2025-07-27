@@ -1,12 +1,43 @@
+
+"use client";
+
+import { useState, useContext }from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Building } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { UserContext } from "@/context/user-context";
+import { toast } from "@/hooks/use-toast";
 
 export default function LoginPartnerPage() {
+    const { partnerLogin } = useContext(UserContext);
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const router = useRouter();
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        try {
+            await partnerLogin(email, password);
+            toast({ title: "Login Successful!" });
+            router.push('/dashboard/partner-admin');
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Login Failed',
+                description: error.message || 'Please check your credentials and try again.'
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="w-full max-w-md p-8 space-y-8">
@@ -21,6 +52,7 @@ export default function LoginPartnerPage() {
         </div>
         
         <Card>
+          <form onSubmit={handleLogin}>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Building /> Partner Login</CardTitle>
                 <CardDescription>Enter your credentials to access the partner dashboard.</CardDescription>
@@ -28,16 +60,17 @@ export default function LoginPartnerPage() {
             <CardContent className="space-y-4">
                  <div className="space-y-2">
                     <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" type="email" placeholder="partner@example.com" required />
+                    <Input id="email" type="email" placeholder="partner@example.com" required value={email} onChange={e => setEmail(e.target.value)} />
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
-                    <Input id="password" type="password" required />
+                    <Input id="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} />
                 </div>
-                 <Button className="w-full" asChild>
-                    <Link href="/dashboard/partner-admin">Login</Link>
+                 <Button className="w-full" type="submit" disabled={isLoading}>
+                    {isLoading ? "Logging in..." : "Login"}
                  </Button>
             </CardContent>
+          </form>
         </Card>
         
         <p className="text-center text-sm text-muted-foreground">
