@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,8 @@ import { explainRiskFactors, ExplainRiskFactorsInput, ExplainRiskFactorsOutput }
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { UserContext } from '@/context/user-context';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const initialApplications = [
   { id: 'app-001', user: 'Anonymous User #4B7A', score: 785, loan: 'Stablecoin Personal Loan', amount: '$10,000', status: 'Pending' },
@@ -37,6 +39,7 @@ type Application = typeof initialApplications[0] & {
 };
 
 export default function PartnerAdminPage() {
+    const { avatarUrl } = useContext(UserContext);
     const [applications, setApplications] = useState<Application[]>(initialApplications);
     const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
     const [isSigning, setIsSigning] = useState(false);
@@ -168,7 +171,15 @@ export default function PartnerAdminPage() {
             <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
                  <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2"><User /> Borrower Profile</DialogTitle>
+                        <DialogTitle className="flex items-center gap-2">
+                             <Avatar>
+                                <AvatarImage src={avatarUrl || ''} alt={selectedApplication?.user} />
+                                <AvatarFallback>
+                                    <User />
+                                </AvatarFallback>
+                            </Avatar>
+                            Borrower Profile
+                        </DialogTitle>
                         <DialogDescription>{selectedApplication?.user} - {selectedApplication?.loan}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-6 py-4">
