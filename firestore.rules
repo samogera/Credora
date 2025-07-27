@@ -1,48 +1,53 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+  
+    // Default allow reads for authenticated users, lock down writes.
+    // This allows UI components like partner dashboards to fetch lists.
+    // Write security is handled on a per-collection basis below.
+    match /{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false; // Deny all writes by default
+    }
 
-    // Users can only read and write to their own document.
+    // users: A user can create their own document and update it.
+    // No one else can.
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth.uid == userId;
     }
-
-    // Partners can be read by anyone authenticated. Only admins should write here in a real app.
-    // Products can be managed by their partner (simulated as any authenticated user for now).
+    
+    // partners: The demo partner can update their profile.
+    // Product creation/deletion is handled in the subcollection.
     match /partners/{partnerId} {
-      allow read: if request.auth != null;
-      // In a real app, you'd check if request.auth.uid is a partner admin.
-      // For now, allow any authenticated user to simulate a partner managing their profile.
-      allow write: if request.auth != null;
-
-      match /products/{productId} {
-        allow read: if request.auth != null;
-        // Allow any authenticated user to simulate being a partner adding/removing products.
-        allow create, delete: if request.auth != null;
-      }
+        // For the demo, only a specific UID can act as the partner
+        allow update: if request.auth.uid == 'partner-1-uid'; // Use a placeholder UID
+        
+        match /products/{productId} {
+             // Only the demo partner can manage their products
+             allow create, delete: if request.auth.uid == 'partner-1-uid';
+        }
     }
 
-    // Applications can be read by any authenticated user (for partner dashboard).
-    // Users can only create applications for themselves.
-    // Users cannot update the status of their own application.
+    // applications:
+    // - Users can create applications for themselves.
+    // - The assigned partner can update the status.
     match /applications/{appId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      // Allow updates only if the status field is not being changed by the requester,
-      // OR if the update is coming from a partner/admin. For this app, we'll allow any
-      // authenticated user to update status to simulate a partner.
-      allow update: if request.auth != null;
+      allow create: if request.resource.data.userId == request.auth.uid;
+
+      // Only allow 'status' field to be updated, and only by the demo partner
+      allow update: if request.auth.uid == 'partner-1-uid'
+                    && request.resource.data.keys().hasOnly(['status']);
     }
 
-    // Notifications can be created by anyone (server-side logic would secure this).
-    // Users can only read notifications intended for them.
-    match /notifications/{notificationId} {
-       allow create: if request.auth != null;
-       allow read, update: if request.auth != null && (
-         (resource.data.for == 'user' && resource.data.userId == request.auth.uid) ||
-         (resource.data.for == 'partner') // Partners can read all partner notifications
-       );
+    // notifications:
+    // - Can be created by the system (simulated by authenticated users for now).
+    // - Can be updated (to be marked as 'read') only by the recipient.
+    match /notifications/{notifId} {
+      allow create: if request.auth != null;
+      allow update: if request.auth.uid == resource.data.userId 
+                    && request.resource.data.keys().hasOnly(['read']);
     }
   }
 }

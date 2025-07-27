@@ -1,12 +1,12 @@
 
 "use client";
 
-import { createContext, useState, ReactNode, Dispatch, SetStateAction, useEffect } from 'react';
+import { createContext, useState, ReactNode, useEffect } from 'react';
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, storage, auth } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, orderBy, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, orderBy, writeBatch, documentId } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, User, signInAnonymously } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 
 // Types
@@ -124,21 +124,28 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [partnerProfile, setPartnerProfileState] = useState({ name: "Stellar Lend", logo: "https://placehold.co/40x40/111111/FFFFFF?text=SL", website: "https://stellarlend.finance" });
     const [partnerProducts, setPartnerProducts] = useState<LoanProduct[]>([]);
 
+    // Ensure user is signed in anonymously for read access
+    useEffect(() => {
+        signInAnonymously(auth).catch((error) => {
+            console.error("Anonymous sign-in failed:", error);
+        });
+    }, []);
+
     useEffect(() => {
         // Seed initial data if partners collection is empty
         const seedPartners = async () => {
             const partnersRef = collection(db, "partners");
-            const q = query(partnersRef);
+            const q = query(partnersRef, where(documentId(), "in", initialPartners.map(p => p.id)));
             const snapshot = await getDocs(q);
-            if (snapshot.empty) {
+            if (snapshot.size !== initialPartners.length) {
                 console.log("Seeding partners...");
                 const batch = writeBatch(db);
                 initialPartners.forEach((partner) => {
                     const partnerDocRef = doc(db, "partners", partner.id);
                     batch.set(partnerDocRef, { name: partner.name, logo: partner.logo, description: partner.description, website: partner.website });
                     partner.products.forEach((product) => {
-                        const productDocRef = doc(collection(db, "partners", partner.id, "products"));
-                        batch.set(productDocRef, product);
+                        const productDocRef = doc(collection(db, "partners", partner.id, "products"), product.id);
+                        batch.set(productDocRef, { ...product, id: undefined }); // Don't store id field inside doc
                     });
                 });
                 await batch.commit();
@@ -150,8 +157,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
-            if (currentUser) {
-                // Pre-warm user document to ensure it exists
+            if (currentUser && !currentUser.isAnonymous) {
                 const userDocRef = doc(db, "users", currentUser.uid);
                 await setDoc(userDocRef, { 
                     email: currentUser.email, 
@@ -163,11 +169,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, []);
     
 
-    // This effect is for the logged-in user
+    // Listeners for user-specific data
     useEffect(() => {
-        if (!user) {
+        if (!user || user.isAnonymous) {
             setApplications([]);
-            setNotifications([]);
+            setNotifications(prev => prev.filter(n => n.for !== 'user'));
             return;
         }
 
@@ -219,7 +225,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     // This effect is for the logged-in partner view
     useEffect(() => {
-         const partnerId = "partner-1"; // Hardcoded for this simulation
+         const partnerId = "partner-1";
 
          const unsubProfile = onSnapshot(doc(db, "partners", partnerId), (doc) => {
             if(doc.exists()){
@@ -232,9 +238,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
              setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
          });
 
-         // This query now fetches all applications directly. Data is denormalized.
          const qApps = query(collection(db, "applications"), orderBy("status", "desc"));
-         const unsubscribeApps = onSnapshot(qApps, async (snapshot) => {
+         const unsubscribeApps = onSnapshot(qApps, (snapshot) => {
              const appsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application));
              setApplications(appsData);
          }, (error) => console.error("Partner app listener error: ", error));
@@ -256,7 +261,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, [])
 
     const setAvatarUrl = async (url: string) => {
-        if (!user) return;
+        if (!user || user.isAnonymous) return;
         const userDocRef = doc(db, "users", user.uid);
         try {
             if (url.startsWith('data:image')) {
@@ -275,8 +280,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const addApplication = async (app: Omit<Application, 'id' | 'user' | 'userId' >) => {
-        if (!user) return;
-        // Denormalize user data into the application document
+        if (!user || user.isAnonymous) return;
         const newApp = { 
             ...app, 
             userId: user.uid, 
@@ -294,7 +298,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     };
     
     const updatePartnerProfile = async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
-        const partnerId = "partner-1"; // Hardcoded
+        const partnerId = "partner-1";
         const partnerRef = doc(db, "partners", partnerId);
 
         if (profile.logo && profile.logo.startsWith('data:image')) {
@@ -309,12 +313,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
     
     const addPartnerProduct = async (product: Omit<LoanProduct, 'id'>) => {
-        const partnerId = "partner-1"; // Hardcoded
+        const partnerId = "partner-1";
         await addDoc(collection(db, "partners", partnerId, "products"), product);
     }
     
     const removePartnerProduct = async (id: string) => {
-        const partnerId = "partner-1"; // Hardcoded
+        const partnerId = "partner-1";
         await deleteDoc(doc(db, "partners", partnerId, "products", id));
         toast({ title: "Product Removed", variant: "destructive" });
     }
@@ -324,22 +328,23 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const markNotificationsAsRead = async (role: 'user' | 'partner') => {
-       let notifsToUpdate: Notification[] = [];
+       let notifsToUpdateQuery;
        const notifsRef = collection(db, 'notifications');
        
-       if (role === 'user' && user) {
-           notifsToUpdate = notifications.filter(n => n.for === 'user' && n.userId === user.uid && !n.read);
+       if (role === 'user' && user && !user.isAnonymous) {
+           notifsToUpdateQuery = query(notifsRef, where("for", "==", "user"), where("userId", "==", user.uid), where("read", "==", false));
        } else if (role === 'partner') {
-           // This logic is simplified for the demo. In a real app, you'd target the partner's ID.
-           notifsToUpdate = notifications.filter(n => n.for === 'partner' && !n.read);
+           notifsToUpdateQuery = query(notifsRef, where("for", "==", "partner"), where("read", "==", false));
+       } else {
+           return;
        }
 
-       if (notifsToUpdate.length === 0) return;
+       const snapshot = await getDocs(notifsToUpdateQuery);
+       if (snapshot.empty) return;
 
        const batch = writeBatch(db);
-       notifsToUpdate.forEach(n => {
-           const notifDoc = doc(notifsRef, n.id);
-           batch.update(notifDoc, { read: true });
+       snapshot.docs.forEach(d => {
+           batch.update(d.ref, { read: true });
        });
        await batch.commit();
     }
