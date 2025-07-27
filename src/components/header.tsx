@@ -14,8 +14,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { LifeBuoy, LogOut, Settings, CircleUserRound } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { useContext } from "react";
+import { UserContext } from "@/context/user-context";
 
 export function Header() {
+  const { avatarUrl } = useContext(UserContext);
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 sm:px-6">
       <SidebarTrigger className="md:hidden" />
@@ -30,7 +33,7 @@ export function Header() {
             className="overflow-hidden rounded-full"
           >
              <Avatar>
-                <AvatarImage src="https://placehold.co/32x32.png" alt="User Avatar" data-ai-hint="avatar" />
+                <AvatarImage src={avatarUrl || ''} alt="User Avatar" data-ai-hint="avatar" />
                 <AvatarFallback>
                     <CircleUserRound />
                 </AvatarFallback>

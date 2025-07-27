@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useContext } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User, Upload } from 'lucide-react';
+import { UserContext } from '@/context/user-context';
 
 export default function SettingsPage() {
-    const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+    const { avatarUrl, setAvatarUrl } = useContext(UserContext);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // In a real application, this data would come from a user context or API call
@@ -26,7 +27,7 @@ export default function SettingsPage() {
         if (file) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                setAvatarPreview(reader.result as string);
+                setAvatarUrl(reader.result as string);
             };
             reader.readAsDataURL(file);
         }
@@ -50,7 +51,7 @@ export default function SettingsPage() {
                 <CardContent className="space-y-6">
                      <div className="flex items-center gap-6">
                         <Avatar className="h-20 w-20">
-                            <AvatarImage src={avatarPreview || ''} alt={userData.name} />
+                            <AvatarImage src={avatarUrl || ''} alt={userData.name} />
                             <AvatarFallback>
                                 <User className="h-10 w-10" />
                             </AvatarFallback>
