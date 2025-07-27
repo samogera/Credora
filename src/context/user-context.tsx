@@ -146,12 +146,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
             if (currentUser) {
-                // Pre-warm user document
+                // Pre-warm user document to ensure it exists
                 const userDocRef = doc(db, "users", currentUser.uid);
-                setDoc(userDocRef, { email: currentUser.email, displayName: currentUser.displayName || `User #${currentUser.uid.substring(0,4)}` }, { merge: true });
+                 await setDoc(userDocRef, { email: currentUser.email, displayName: currentUser.displayName || `User #${currentUser.uid.substring(0,4)}` }, { merge: true });
             }
         });
         return () => unsubscribe();
