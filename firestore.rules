@@ -1,42 +1,61 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can only read/write their own profile data
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    
+    // Helper function to check if a user is a partner (simulated)
+    function isPartner() {
+      // In a real app, you'd check a custom claim or a 'roles' field.
+      // For now, we'll assume any authenticated user could be a partner for testing.
+      return request.auth != null;
     }
 
-    // Partners can be read by any authenticated user, but only written by admins (future)
+    // Users can read and write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+
+    // Partners collection can be read by anyone, but only created/updated by an admin (not implemented yet)
     match /partners/{partnerId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if false; // Locked down for now
 
-      // Products can be read by anyone, but only managed by the partner (future)
+      // Partners can manage their own products
       match /products/{productId} {
-        allow read: if request.auth != null;
-        allow write: if false; // Locked down for now
+        allow read: if true;
+        // For this simulation, we'll say any logged-in user can act as the partner
+        allow create, delete: if isPartner();
       }
     }
     
-    // Application rules: users can create, read their own. Partners can read all.
+    // Application rules
     match /applications/{appId} {
-      allow create: if request.auth != null;
-      allow read: if (request.auth != null && resource.data.userId == request.auth.uid) || isPartner();
-      allow update(status): if isPartner();
-    }
-    
-    // Notification rules
-    match /notifications/{notifId} {
-        allow create: if request.auth != null; // Anyone can create a notification (user app, partner decision)
-        allow read, update(read): if (request.auth != null && resource.data.userId == request.auth.uid) || (resource.data.for == 'partner' && isPartner());
+      // Allow create if the user is creating an application for themselves
+      allow create: if request.auth.uid == request.resource.data.userId;
+      
+      // Allow user to read their own application
+      // Allow a partner to read any application
+      allow read: if request.auth.uid == resource.data.userId || isPartner();
+      
+      // Allow a partner to update the status
+      allow update: if isPartner() && request.resource.data.keys().hasOnly(['status']);
     }
 
-    // A helper function to check if the authenticated user is a partner.
-    // In a real app, this might check a custom claim on the user's token.
-    // For this simulation, we'll allow any authenticated user to act as a partner for reads.
-    function isPartner() {
-      return request.auth != null;
+    // Notification rules
+    match /notifications/{notifId} {
+      // Allow creation by any authenticated user (user or a partner function)
+      allow create: if request.auth.uid != null;
+      
+      // Allow user to read their own notifications
+      // Allow a partner to read partner-wide notifications
+      allow read: if (resource.data.for == 'user' && request.auth.uid == resource.data.userId) || 
+                   (resource.data.for == 'partner' && isPartner());
+                   
+      // Allow user/partner to mark their own notifications as read
+      allow update: if ((resource.data.for == 'user' && request.auth.uid == resource.data.userId) ||
+                     (resource.data.for == 'partner' && isPartner())) &&
+                     request.resource.data.keys().hasOnly(['read']);
     }
   }
 }

@@ -73,8 +73,11 @@ export default function PartnerAdminPage() {
         const appToExplain = applications.find(app => app.id === id);
         if (!appToExplain) return;
 
-        appToExplain.isExplaining = true;
-        setSelectedApplication({...appToExplain});
+        const updatedApp = { ...appToExplain, isExplaining: true };
+        setSelectedApplication(updatedApp);
+        // Also update the main list to show loading state if the user closes and reopens the dialog
+        setApplications(apps => apps.map(a => a.id === id ? updatedApp : a));
+
 
         const input: ExplainRiskFactorsInput = {
             score: appToExplain.score,
@@ -84,13 +87,16 @@ export default function PartnerAdminPage() {
 
         try {
             const result = await explainRiskFactors(input);
-            appToExplain.aiExplanation = result;
+            const finalApp = { ...updatedApp, aiExplanation: result, isExplaining: false };
+            setSelectedApplication(finalApp);
+            setApplications(apps => apps.map(a => a.id === id ? finalApp : a));
+
         } catch (error) {
             console.error("Error explaining risk factors:", error);
             toast({ variant: 'destructive', title: "AI Error", description: "Could not fetch AI risk explanation." });
-        } finally {
-            appToExplain.isExplaining = false;
-            setSelectedApplication({...appToExplain});
+            const errorApp = { ...updatedApp, isExplaining: false };
+            setSelectedApplication(errorApp);
+            setApplications(apps => apps.map(a => a.id === id ? errorApp : a));
         }
     };
 
@@ -133,12 +139,12 @@ export default function PartnerAdminPage() {
                                     <TableRow key={app.id}>
                                         <TableCell className="font-medium flex items-center gap-2">
                                             <Avatar className='h-8 w-8'>
-                                                <AvatarImage src={app.userAvatar || ''} alt={app.user} />
+                                                <AvatarImage src={app.user.avatarUrl || ''} alt={app.user.displayName} />
                                                 <AvatarFallback>
                                                     <User />
                                                 </AvatarFallback>
                                             </Avatar>
-                                            <span>{app.user}</span>
+                                            <span>{app.user.displayName}</span>
                                         </TableCell>
                                         <TableCell className={`text-center font-bold text-lg ${getScoreColor(app.score)}`}>{app.score}</TableCell>
                                         <TableCell>{app.loan.name}</TableCell>
@@ -175,14 +181,14 @@ export default function PartnerAdminPage() {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                              <Avatar>
-                                <AvatarImage src={selectedApplication?.userAvatar || ''} alt={selectedApplication?.user} />
+                                <AvatarImage src={selectedApplication?.user.avatarUrl || ''} alt={selectedApplication?.user.displayName} />
                                 <AvatarFallback>
                                     <User />
                                 </AvatarFallback>
                             </Avatar>
                             Borrower Profile
                         </DialogTitle>
-                        <DialogDescription>{selectedApplication?.user} - {selectedApplication?.loan.name}</DialogDescription>
+                        <DialogDescription>{selectedApplication?.user.displayName} - {selectedApplication?.loan.name}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-6 py-4">
                         <div className="grid grid-cols-2 gap-4 text-center">
@@ -235,7 +241,7 @@ export default function PartnerAdminPage() {
                     </div>
                     <DialogFooter>
                          <Button variant="secondary" onClick={() => setIsProfileOpen(false)}>Close</Button>
-                         <Button className="bg-green-600 hover:bg-green-700" onClick={() => { setIsProfileOpen(false); handleDecision(selectedApplication!, 'Approved')}}>
+                         <Button className="bg-green-600 hover:bg-green-700" onClick={() => { setIsProfileOpen(false); selectedApplication && handleDecision(selectedApplication, 'Approved')}}>
                             <CheckCircle className="mr-2 h-4 w-4" /> Approve Loan
                          </Button>
                     </DialogFooter>
@@ -249,7 +255,7 @@ export default function PartnerAdminPage() {
                             <FileSignature /> Finalize Loan Agreement
                         </DialogTitle>
                         <DialogDescription>
-                            To finalize the loan for {selectedApplication?.user}, you must sign the Soroban smart contract. This creates a verifiable agreement on the Stellar network.
+                            To finalize the loan for {selectedApplication?.user.displayName}, you must sign the Soroban smart contract. This creates a verifiable agreement on the Stellar network.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4 text-sm">

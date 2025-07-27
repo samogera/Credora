@@ -4,7 +4,7 @@
 import { createContext, useState, ReactNode, Dispatch, SetStateAction, useEffect } from 'react';
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, storage, auth } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
@@ -29,9 +29,12 @@ export type Partner = {
 };
 
 export type Application = {
-    id: string;
-    user: string;
+    id:string;
     userId: string;
+    user: {
+        displayName: string;
+        avatarUrl?: string | null;
+    };
     score: number;
     loan: {
         id: string;
@@ -167,10 +170,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             setApplications(userApps);
         }, (error) => console.error("App listener error: ", error));
 
-        const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid));
+        const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid), orderBy("timestamp", "desc"));
         const unsubscribeNotifs = onSnapshot(qNotifs, (snapshot) => {
             const userNotifs = snapshot.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp.toDate() } as Notification));
-            setNotifications(userNotifs.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime()));
+            setNotifications(userNotifs);
         }, (error) => console.error("Notification listener error: ", error));
         
         const userDocRef = doc(db, "users", user.uid);
@@ -226,10 +229,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
              setApplications(allApps);
          }, (error) => console.error("Partner app listener error: ", error));
 
-         const qNotifs = query(collection(db, "notifications"), where("for", "==", 'partner'));
+         const qNotifs = query(collection(db, "notifications"), where("for", "==", 'partner'), orderBy("timestamp", "desc"));
          const unsubscribeNotifs = onSnapshot(qNotifs, (snapshot) => {
              const partnerNotifs = snapshot.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp.toDate() } as Notification));
-             setNotifications(partnerNotifs.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime()));
+             setNotifications(partnerNotifs);
          }, (error) => console.error("Partner notif listener error: ", error));
 
 
@@ -265,8 +268,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const newApp = { 
             ...app, 
             userId: user.uid, 
-            user: user.displayName || `User #${user.uid.substring(0,4)}`,
-            userAvatar: avatarUrl
+            user: {
+                displayName: user.displayName || `User #${user.uid.substring(0,4)}`,
+                avatarUrl: avatarUrl
+            }
         };
         await addDoc(collection(db, "applications"), newApp);
     };
@@ -276,7 +281,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         await updateDoc(appRef, { status });
     };
     
-    const updatePartnerProfile = async (profile: Partial<Omit<Partner, 'products' | 'description'>>) => {
+    const updatePartnerProfile = async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
         const partnerId = "partner-1"; // Hardcoded
         const partnerRef = doc(db, "partners", partnerId);
 
@@ -299,6 +304,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const removePartnerProduct = async (id: string) => {
         const partnerId = "partner-1"; // Hardcoded
         await deleteDoc(doc(db, "partners", partnerId, "products", id));
+        toast({ title: "Product Removed", variant: "destructive" });
     }
 
     const addNotification = async (notification: Omit<Notification, 'id' | 'timestamp'>) => {
@@ -306,10 +312,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const markNotificationsAsRead = async (role: 'user' | 'partner') => {
-       const relevantNotifications = notifications.filter(n => n.for === role && !n.read);
-       relevantNotifications.forEach(n => {
-           updateDoc(doc(db, 'notifications', n.id), { read: true });
-       });
+       let notifsToUpdate: Notification[] = [];
+       if (role === 'user' && user) {
+           notifsToUpdate = notifications.filter(n => n.userId === user.uid && !n.read);
+       } else if (role === 'partner') {
+           notifsToUpdate = notifications.filter(n => n.for === 'partner' && !n.read);
+       }
+
+       for (const n of notifsToUpdate) {
+           const notifRef = doc(db, 'notifications', n.id);
+           await updateDoc(notifRef, { read: true });
+       }
     }
 
     const contextValue = {

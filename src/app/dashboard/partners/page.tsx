@@ -22,7 +22,7 @@ import { UserContext, LoanProduct, Application } from '@/context/user-context';
 
 
 export default function PartnersPage() {
-    const { partners, addApplication, addNotification, user, avatarUrl } = useContext(UserContext);
+    const { partners, addApplication, addNotification, user } = useContext(UserContext);
     const [selectedLoan, setSelectedLoan] = useState<LoanProduct & { partnerName: string } | null>(null);
     const [isApplying, setIsApplying] = useState(false);
     const [customAmount, setCustomAmount] = useState(500);
