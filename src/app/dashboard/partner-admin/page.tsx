@@ -13,6 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle, XCircle, FileSignature, Bot, MoreHorizontal, User, BarChart, FileText, Link as LinkIcon, Info } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { PartnerPortfolio } from '@/components/partner-portfolio';
@@ -21,7 +22,6 @@ import { explainRiskFactors, ExplainRiskFactorsInput, ExplainRiskFactorsOutput }
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const initialApplications = [
   { id: 'app-001', user: 'Anonymous User #4B7A', score: 785, loan: 'Stablecoin Personal Loan', amount: '$10,000', status: 'Pending' },
@@ -64,6 +64,9 @@ export default function PartnerAdminPage() {
     const handleViewProfile = (app: Application) => {
         setSelectedApplication(app);
         setIsProfileOpen(true);
+        if (!app.aiExplanation) {
+          handleExplainRisk(app.id);
+        }
     };
 
     const handleExplainRisk = async (id: string) => {
@@ -71,7 +74,8 @@ export default function PartnerAdminPage() {
         if (appIndex === -1) return;
 
         setApplications(apps => apps.map((app, index) => index === appIndex ? { ...app, isExplaining: true, aiExplanation: null } : app));
-        
+        setSelectedApplication(prev => prev ? {...prev, isExplaining: true, aiExplanation: null} : null);
+
         const appToExplain = applications[appIndex];
         const input: ExplainRiskFactorsInput = {
             score: appToExplain.score,
@@ -82,13 +86,13 @@ export default function PartnerAdminPage() {
         try {
             const result = await explainRiskFactors(input);
             setApplications(apps => apps.map((app, index) => index === appIndex ? { ...app, aiExplanation: result, isExplaining: false } : app));
-            setSelectedApplication(prev => prev ? {...prev, aiExplanation: result, isExplaining: false} : null);
+            setSelectedApplication(prev => prev && prev.id === id ? {...prev, aiExplanation: result, isExplaining: false} : prev);
 
         } catch (error) {
             console.error("Error explaining risk factors:", error);
             toast({ variant: 'destructive', title: "AI Error", description: "Could not fetch AI risk explanation." });
             setApplications(apps => apps.map((app, index) => index === appIndex ? { ...app, isExplaining: false } : app));
-            setSelectedApplication(prev => prev ? {...prev, isExplaining: false} : null);
+            setSelectedApplication(prev => prev && prev.id === id ? {...prev, isExplaining: false} : prev);
         }
     };
 
@@ -115,80 +119,56 @@ export default function PartnerAdminPage() {
             
             <PartnerPortfolio />
 
-            <Tabs defaultValue="applications" className="mt-6">
-                <TabsList>
-                    <TabsTrigger value="applications">Loan Applications</TabsTrigger>
-                    <TabsTrigger value="active-loans">Active Loans</TabsTrigger>
-                    <TabsTrigger value="settings">Settings</TabsTrigger>
-                </TabsList>
-                <TabsContent value="applications">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Pending Applications</CardTitle>
-                            <CardDescription>Review new loan requests from prospective borrowers.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Borrower</TableHead>
-                                        <TableHead className="text-center">Credora Score</TableHead>
-                                        <TableHead>Loan</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
-                                        <TableHead className="text-center">Status</TableHead>
-                                        <TableHead className="text-right"></TableHead>
+            <div className="grid gap-6 mt-6 md:grid-cols-2">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Pending Applications</CardTitle>
+                        <CardDescription>Review new loan requests from prospective borrowers.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Borrower</TableHead>
+                                    <TableHead className="text-center">Credora Score</TableHead>
+                                    <TableHead>Loan</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead className="text-right"></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {pendingApplications.length > 0 ? pendingApplications.map(app => (
+                                    <TableRow key={app.id}>
+                                        <TableCell className="font-medium">{app.user}</TableCell>
+                                        <TableCell className={`text-center font-bold text-lg ${getScoreColor(app.score)}`}>{app.score}</TableCell>
+                                        <TableCell>{app.loan}</TableCell>
+                                        <TableCell className="text-right">{app.amount}</TableCell>
+                                        <TableCell className="text-right">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon">
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => handleViewProfile(app)}>View Profile</DropdownMenuItem>
+                                                    <DropdownMenuItem className="text-green-600" onClick={() => handleDecision(app.id, 'Approved')}>Approve</DropdownMenuItem>
+                                                    <DropdownMenuItem className="text-red-600" onClick={() => handleDecision(app.id, 'Denied')}>Deny</DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {pendingApplications.length > 0 ? pendingApplications.map(app => (
-                                        <TableRow key={app.id}>
-                                            <TableCell className="font-medium">{app.user}</TableCell>
-                                            <TableCell className={`text-center font-bold text-xl ${getScoreColor(app.score)}`}>{app.score}</TableCell>
-                                            <TableCell>{app.loan}</TableCell>
-                                            <TableCell className="text-right">{app.amount}</TableCell>
-                                            <TableCell className="text-center">
-                                                <Badge variant={getStatusVariant(app.status)}>{app.status}</Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="icon">
-                                                            <MoreHorizontal className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem onClick={() => handleViewProfile(app)}>View Profile</DropdownMenuItem>
-                                                        <DropdownMenuItem className="text-green-600" onClick={() => handleDecision(app.id, 'Approved')}>Approve</DropdownMenuItem>
-                                                        <DropdownMenuItem className="text-red-600" onClick={() => handleDecision(app.id, 'Denied')}>Deny</DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </TableCell>
-                                        </TableRow>
-                                    )) : (
-                                        <TableRow>
-                                            <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No pending applications.</TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                <TabsContent value="active-loans">
-                   <LoanActivity />
-                </TabsContent>
-                 <TabsContent value="settings">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Partner Settings</CardTitle>
-                             <CardDescription>Manage your lending preferences and API configurations.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-muted-foreground">Settings for lending preferences, API keys, and webhooks will be available here.</p>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                                )) : (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No pending applications.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+                <LoanActivity />
+            </div>
         
             <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
                  <DialogContent className="sm:max-w-lg">
@@ -212,22 +192,25 @@ export default function PartnerAdminPage() {
                         
                          <Card>
                              <CardHeader className="pb-2">
-                                 <CardTitle className="text-base">AI Risk Explanation</CardTitle>
+                                 <CardTitle className="text-base flex items-center justify-between">
+                                    <span>AI Risk Explanation</span>
+                                     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => selectedApplication && handleExplainRisk(selectedApplication.id)} disabled={selectedApplication?.isExplaining}>
+                                        <Bot className={`h-4 w-4 ${selectedApplication?.isExplaining ? 'animate-pulse' : ''}`} />
+                                    </Button>
+                                 </CardTitle>
                              </CardHeader>
                             <CardContent className="space-y-4">
-                                {selectedApplication?.isExplaining && <Skeleton className="h-12 w-full" />}
-                                {selectedApplication?.aiExplanation && (
+                                {selectedApplication?.isExplaining ? <Skeleton className="h-16 w-full" /> : 
+                                selectedApplication?.aiExplanation ? (
                                     <Alert className="text-sm">
                                         <Info className="h-4 w-4" />
                                         <AlertDescription>
                                            {selectedApplication.aiExplanation.explanation}
                                         </AlertDescription>
                                     </Alert>
-                                )}
-                                <Button size="sm" variant="outline" className="w-full" onClick={() => handleExplainRisk(selectedApplication!.id)} disabled={selectedApplication?.isExplaining}>
-                                    <Bot className={`mr-2 h-4 w-4 ${selectedApplication?.isExplaining ? 'animate-pulse' : ''}`} />
-                                    {selectedApplication?.isExplaining ? "Analyzing..." : "Regenerate AI Explanation"}
-                                </Button>
+                                ) :
+                                 <p className="text-sm text-muted-foreground text-center py-2">Click the bot icon to generate an AI explanation.</p>
+                                }
                             </CardContent>
                         </Card>
 
@@ -236,9 +219,9 @@ export default function PartnerAdminPage() {
                                 <CardTitle className="text-base">Profile Data Sources</CardTitle>
                              </CardHeader>
                             <CardContent className="space-y-3 text-sm">
-                                <div className="flex items-center gap-3"><BarChart className="h-5 w-5 text-primary" /> <span>On-chain Stellar Activity</span></div>
-                                <div className="flex items-center gap-3"><FileText className="h-5 w-5 text-primary" /> <span>Verified Utility Bill Payments</span></div>
-                                <div className="flex items-center gap-3"><LinkIcon className="h-5 w-5 text-primary" /> <span>Linked Off-chain Identifiers</span></div>
+                                <div className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-green-500" /> <span>On-chain Stellar Activity</span></div>
+                                <div className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-green-500" /> <span>Verified Utility Bill Payments</span></div>
+                                <div className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-green-500" /> <span>Linked Off-chain Identifiers</span></div>
                             </CardContent>
                         </Card>
                     </div>

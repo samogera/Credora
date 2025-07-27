@@ -17,7 +17,8 @@ import {
   Users,
   Settings,
   LogOut,
-  Building
+  Building,
+  BarChart3
 } from "lucide-react"
 import { Button } from "./ui/button"
 import { Logo } from './logo'
@@ -29,7 +30,9 @@ const userMenuItems = [
 ]
 
 const partnerMenuItems = [
-    { href: '/dashboard/partner-admin', label: 'Loan Dashboard', icon: Building },
+    { href: '/dashboard/partner-admin', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/dashboard/partner-admin/analytics', label: 'Analytics', icon: BarChart3 },
+    { href: '/dashboard/partner-admin/settings', label: 'Settings', icon: Settings },
 ]
 
 
