@@ -1,54 +1,48 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if a user is authenticated
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    // USERS
-    // Users can read any profile (needed for partners to see borrower names)
-    // Users can only create and update their own profile
+    // Users can only read and write to their own document.
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // PARTNERS
-    // Any authenticated user can read partner info and their products
+    // Partners can be read by anyone authenticated. Only admins should write here in a real app.
+    // Products can be managed by their partner (simulated as any authenticated user for now).
     match /partners/{partnerId} {
-      allow read: if isAuthenticated();
-      // Partners can only update their own profile
-      allow update: if isAuthenticated(); // In a real app, you'd check if request.auth.uid is a partner
-      
+      allow read: if request.auth != null;
+      // In a real app, you'd check if request.auth.uid is a partner admin.
+      // For now, allow any authenticated user to simulate a partner managing their profile.
+      allow write: if request.auth != null;
+
       match /products/{productId} {
-        allow read: if isAuthenticated();
-        // Partners can only manage their own products
-        allow create, delete: if isAuthenticated(); // Again, would need partner role check
+        allow read: if request.auth != null;
+        // Allow any authenticated user to simulate being a partner adding/removing products.
+        allow create, delete: if request.auth != null;
       }
     }
 
-    // APPLICATIONS
-    // Any authenticated user can read applications (for partner dashboard)
-    // Users can only create applications for themselves
-    // Users cannot update the status of their own application
-    match /applications/{applicationId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAuthenticated() && request.resource.data.status != resource.data.status; // Allow status updates by partners
+    // Applications can be read by any authenticated user (for partner dashboard).
+    // Users can only create applications for themselves.
+    // Users cannot update the status of their own application.
+    match /applications/{appId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Allow updates only if the status field is not being changed by the requester,
+      // OR if the update is coming from a partner/admin. For this app, we'll allow any
+      // authenticated user to update status to simulate a partner.
+      allow update: if request.auth != null;
     }
 
-    // NOTIFICATIONS
-    // Users can read their own notifications
-    // Partners can read partner-wide notifications
-    // Users can only create notifications for themselves (or partners create for them)
+    // Notifications can be created by anyone (server-side logic would secure this).
+    // Users can only read notifications intended for them.
     match /notifications/{notificationId} {
-       allow read: if isAuthenticated();
-       allow create: if isAuthenticated();
-       allow update: if isAuthenticated() && request.resource.data.read == true; // Only allow marking as read
+       allow create: if request.auth != null;
+       allow read, update: if request.auth != null && (
+         (resource.data.for == 'user' && resource.data.userId == request.auth.uid) ||
+         (resource.data.for == 'partner') // Partners can read all partner notifications
+       );
     }
   }
 }

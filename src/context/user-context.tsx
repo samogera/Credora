@@ -1,11 +1,10 @@
 
-
 "use client";
 
 import { createContext, useState, ReactNode, Dispatch, SetStateAction, useEffect } from 'react';
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, storage, auth } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, orderBy, documentId } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, orderBy, writeBatch } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
@@ -133,13 +132,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             const snapshot = await getDocs(q);
             if (snapshot.empty) {
                 console.log("Seeding partners...");
-                initialPartners.forEach(async (partner) => {
+                const batch = writeBatch(db);
+                initialPartners.forEach((partner) => {
                     const partnerDocRef = doc(db, "partners", partner.id);
-                    await setDoc(partnerDocRef, { name: partner.name, logo: partner.logo, description: partner.description, website: partner.website });
-                    partner.products.forEach(async (product) => {
-                        await addDoc(collection(db, "partners", partner.id, "products"), product);
+                    batch.set(partnerDocRef, { name: partner.name, logo: partner.logo, description: partner.description, website: partner.website });
+                    partner.products.forEach((product) => {
+                        const productDocRef = doc(collection(db, "partners", partner.id, "products"));
+                        batch.set(productDocRef, product);
                     });
                 });
+                await batch.commit();
             }
         };
         seedPartners();
@@ -151,12 +153,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             if (currentUser) {
                 // Pre-warm user document to ensure it exists
                 const userDocRef = doc(db, "users", currentUser.uid);
-                 await setDoc(userDocRef, { email: currentUser.email, displayName: currentUser.displayName || `User #${currentUser.uid.substring(0,4)}` }, { merge: true });
+                await setDoc(userDocRef, { 
+                    email: currentUser.email, 
+                    displayName: currentUser.displayName || `User #${currentUser.uid.substring(0,4)}` 
+                }, { merge: true });
             }
         });
         return () => unsubscribe();
     }, []);
+    
 
+    // This effect is for the logged-in user
     useEffect(() => {
         if (!user) {
             setApplications([]);
@@ -168,13 +175,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const unsubscribeApps = onSnapshot(qApps, (snapshot) => {
             const userApps = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application));
             setApplications(userApps);
-        }, (error) => console.error("App listener error: ", error));
+        }, (error) => console.error("User app listener error: ", error));
 
         const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid), orderBy("timestamp", "desc"));
         const unsubscribeNotifs = onSnapshot(qNotifs, (snapshot) => {
             const userNotifs = snapshot.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp.toDate() } as Notification));
             setNotifications(prev => [...prev.filter(n => n.for !== 'user'), ...userNotifs]);
-        }, (error) => console.error("Notification listener error: ", error));
+        }, (error) => console.error("User notification listener error: ", error));
         
         const userDocRef = doc(db, "users", user.uid);
         const unsubscribeUser = onSnapshot(userDocRef, (doc) => {
@@ -190,7 +197,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         };
     }, [user]);
     
-    // Listener for all partners and their products
+    // Listener for all partners and their products (for user view)
     useEffect(() => {
         const unsubscribePartners = onSnapshot(collection(db, "partners"), (snapshot) => {
             const partnerPromises = snapshot.docs.map(async (pDoc) => {
@@ -225,32 +232,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
              setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
          });
 
-         const qApps = query(collection(db, "applications"));
+         // This query now fetches all applications directly. Data is denormalized.
+         const qApps = query(collection(db, "applications"), orderBy("status", "desc"));
          const unsubscribeApps = onSnapshot(qApps, async (snapshot) => {
-             const appsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Omit<Application, 'user'> & {user: any}));
-             if (appsData.length === 0) {
-                setApplications([]);
-                return;
-             }
-             const userIds = [...new Set(appsData.map(app => app.userId))];
-             if (userIds.length === 0) {
-                 setApplications([]);
-                 return;
-             }
-             const usersRef = collection(db, "users");
-             const usersQuery = query(usersRef, where(documentId(), "in", userIds));
-             const userSnapshots = await getDocs(usersQuery);
-             const usersData = Object.fromEntries(userSnapshots.docs.map(d => [d.id, d.data()]));
-             
-             const allApps = appsData.map(app => ({
-                ...app,
-                user: {
-                    displayName: usersData[app.userId]?.displayName || 'Unknown User',
-                    avatarUrl: usersData[app.userId]?.avatarUrl || null,
-                }
-             }));
-
-             setApplications(allApps);
+             const appsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Application));
+             setApplications(appsData);
          }, (error) => console.error("Partner app listener error: ", error));
 
 
@@ -277,10 +263,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 const storageRef = ref(storage, `users/${user.uid}/avatar.png`);
                 const snapshot = await uploadString(storageRef, url, 'data_url');
                 const downloadUrl = await getDownloadURL(snapshot.ref);
-                await setDoc(userDocRef, { avatarUrl: downloadUrl }, { merge: true });
+                await updateDoc(userDocRef, { avatarUrl: downloadUrl });
                 setAvatarUrlState(downloadUrl);
             } else {
-                 await setDoc(userDocRef, { avatarUrl: url }, { merge: true });
+                 await updateDoc(userDocRef, { avatarUrl: url });
                  setAvatarUrlState(url);
             }
         } catch (error) {
@@ -290,6 +276,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const addApplication = async (app: Omit<Application, 'id' | 'user' | 'userId' >) => {
         if (!user) return;
+        // Denormalize user data into the application document
         const newApp = { 
             ...app, 
             userId: user.uid, 
@@ -338,17 +325,23 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const markNotificationsAsRead = async (role: 'user' | 'partner') => {
        let notifsToUpdate: Notification[] = [];
+       const notifsRef = collection(db, 'notifications');
+       
        if (role === 'user' && user) {
            notifsToUpdate = notifications.filter(n => n.for === 'user' && n.userId === user.uid && !n.read);
        } else if (role === 'partner') {
-           // Assuming partnerId is known, hardcoded 'partner-1' for now
+           // This logic is simplified for the demo. In a real app, you'd target the partner's ID.
            notifsToUpdate = notifications.filter(n => n.for === 'partner' && !n.read);
        }
 
-       for (const n of notifsToUpdate) {
-           const notifRef = doc(db, 'notifications', n.id);
-           await updateDoc(notifRef, { read: true });
-       }
+       if (notifsToUpdate.length === 0) return;
+
+       const batch = writeBatch(db);
+       notifsToUpdate.forEach(n => {
+           const notifDoc = doc(notifsRef, n.id);
+           batch.update(notifDoc, { read: true });
+       });
+       await batch.commit();
     }
 
     const contextValue = {
