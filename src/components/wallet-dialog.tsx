@@ -16,48 +16,41 @@ import { ScrollArea } from "./ui/scroll-area";
 import { Wallet } from "lucide-react";
 
 const wallets = [
-    { name: "AirTM", logo: "/wallets/generic.svg" },
     { name: "Albedo", logo: "/wallets/albedo.svg" },
-    { name: "Beanstalk", logo: "/wallets/generic.svg" },
-    { name: "BitGo", logo: "/wallets/generic.svg" },
-    { name: "Blockchain.com", logo: "/wallets/generic.svg" },
-    { name: "Centaurus", logo: "/wallets/generic.svg" },
-    { name: "Cobo Wallet", logo: "/wallets/generic.svg" },
-    { name: "Coinbase Wallet", logo: "/wallets/generic.svg" },
-    { name: "CoolWallet", logo: "/wallets/generic.svg" },
-    { name: "Cosmic-Link", logo: "/wallets/generic.svg" },
+    { name: "Atomic Wallet", logo: "/wallets/generic.svg" },
+    { name: "Beans App", logo: "/wallets/generic.svg" },
+    { name: "Coinomi", logo: "/wallets/generic.svg" },
     { name: "D'CENT Wallet", logo: "/wallets/generic.svg" },
+    { name: "Decaf Wallet", logo: "/wallets/generic.svg" },
+    { name: "Ellipal", logo: "/wallets/generic.svg" },
     { name: "Exodus", logo: "/wallets/generic.svg" },
-    { name: "Fireblocks", logo: "/wallets/generic.svg" },
     { name: "Freighter", logo: "/wallets/freighter.svg" },
+    { name: "Green Wallet", logo: "/wallets/generic.svg" },
     { name: "Guarda Wallet", logo: "/wallets/generic.svg" },
-    { name: "Ledger", logo: "/wallets/generic.svg" },
-    { name: "Lobstr", logo: "/wallets/generic.svg" },
-    { name: "Lumi Wallet", logo: "/wallets/generic.svg" },
-    { name: "MyEtherWallet", logo: "/wallets/generic.svg" },
-    { name: "Nelly", logo: "/wallets/generic.svg" },
-    { name: "NiceTrade", logo: "/wallets/generic.svg" },
-    { name: "Papaya", logo: "/wallets/generic.svg" },
-    { name: "Passphrase.io", logo: "/wallets/generic.svg" },
+    { name: "Klever Wallet", logo: "/wallets/generic.svg" },
+    { name: "Ledger Nano", logo: "/wallets/generic.svg" },
+    { name: "Lobstr Wallet", logo: "/wallets/generic.svg" },
+    { name: "Math Wallet", logo: "/wallets/generic.svg" },
+    { name: "Mycelium", logo: "/wallets/generic.svg" },
     { name: "Rabet", logo: "/wallets/rabet.svg" },
     { name: "Saza Wallet", logo: "/wallets/generic.svg" },
-    { name: "Scopuly", logo: "/wallets/generic.svg" },
-    { name: "SecuX", logo: "/wallets/generic.svg" },
-    { name: "Solfis", logo: "/wallets/generic.svg" },
-    { name: "Spacewalk", logo: "/wallets/generic.svg" },
-    { name: "Stargazer", logo: "/wallets/generic.svg" },
+    { name: "Solar Wallet", logo: "/wallets/generic.svg" },
+    { name: "Stellar Account Viewer", logo: "/wallets/generic.svg" },
+    { name: "Stellar Laboratory", logo: "/wallets/generic.svg" },
     { name: "StellarTerm", logo: "/wallets/generic.svg" },
-    { name: "StellarX", logo: "/wallets/generic.svg" },
-    { name: "Tippin.me", logo: "/wallets/generic.svg" },
-    { name: "Trezor", logo: "/wallets/generic.svg" },
+    { name: "StormGain Wallet", logo: "/wallets/generic.svg" },
+    { name: "Stronghold Wallet", logo: "/wallets/generic.svg" },
+    { name: "TokenPocket", logo: "/wallets/generic.svg" },
+    { name: "Trezor Wallet", logo: "/wallets/generic.svg" },
     { name: "Trust Wallet", logo: "/wallets/generic.svg" },
-    { name: "Unstoppable Wallet", logo: "/wallets/generic.svg" },
-    { name: "Vibrant", logo: "/wallets/generic.svg" },
-    { name: "Wirex", logo: "/wallets/generic.svg" },
-    { name: "xBull", logo: "/wallets/xbull.svg" },
-    { name: "Zing", logo: "/wallets/generic.svg" },
+    { name: "Vibrant Wallet", logo: "/wallets/generic.svg" },
+    { name: "xBull Wallet", logo: "/wallets/xbull.svg" },
     { name: "Custom / None of the Above", logo: "/wallets/generic.svg", isCustom: true },
-].sort((a, b) => a.name.localeCompare(b.name));
+].sort((a, b) => {
+    if (a.isCustom) return 1;
+    if (b.isCustom) return -1;
+    return a.name.localeCompare(b.name);
+});
 
 interface WalletDialogProps {
   open: boolean;
@@ -70,26 +63,20 @@ export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
   const handleConnect = async (walletName: string) => {
     // In a real app, this would use the Stellar SDK and the specific wallet's API
     // to request the user's public key and sign a message.
-
-    // 1. Generate a message to sign
-    const message = `Log into Credora at ${new Date().toISOString()}`;
-    
-    // 2. Request signature from the wallet
-    // const signature = await wallet.sign(message);
-    
-    // 3. Send to backend for verification
-    // const response = await fetch('/api/auth/login', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ publicKey, signature, message }),
-    // });
-    
-    // For this demo, we'll simulate a successful connection and redirect.
     console.log(`Simulating connection with ${walletName}...`);
+
+    let toastDescription = `Please approve the connection in your ${walletName} wallet.`;
+
+    if (walletName.toLowerCase().includes('ledger') || walletName.toLowerCase().includes('trezor')) {
+        toastDescription = `Please connect and unlock your ${walletName} device.`;
+    } else if (walletName.toLowerCase().includes('custom')) {
+        toastDescription = `Please enter your public key to proceed.`;
+    }
+
 
     toast({
       title: "Connecting...",
-      description: `Please approve the connection in your ${walletName} wallet.`,
+      description: toastDescription,
     });
 
     setTimeout(() => {
