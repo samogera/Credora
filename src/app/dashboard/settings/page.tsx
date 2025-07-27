@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef, useContext } from 'react';
+import { useRef, useContext } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,12 +10,12 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User, Upload } from 'lucide-react';
 import { UserContext } from '@/context/user-context';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function SettingsPage() {
     const { avatarUrl, setAvatarUrl } = useContext(UserContext);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // In a real application, this data would come from a user context or API call
     const userData = {
         name: "Anonymous User",
         email: "user@example.com",
@@ -43,68 +43,89 @@ export default function SettingsPage() {
                 <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
                 <p className="text-muted-foreground">Manage your account, profile, and notification settings.</p>
             </div>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Profile</CardTitle>
-                    <CardDescription>This is how your information is displayed on the platform.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                     <div className="flex items-center gap-6">
-                        <Avatar className="h-20 w-20">
-                            <AvatarImage src={avatarUrl || ''} alt={userData.name} />
-                            <AvatarFallback>
-                                <User className="h-10 w-10" />
-                            </AvatarFallback>
-                        </Avatar>
-                        <div className='space-y-2'>
-                             <Button variant="outline" onClick={handleUploadClick}>
-                                <Upload className="mr-2 h-4 w-4"/>
-                                Upload Avatar
-                            </Button>
-                            <Input 
-                                type="file" 
-                                ref={fileInputRef}
-                                className="hidden"
-                                accept="image/png, image/jpeg, image/gif"
-                                onChange={handleAvatarChange}
-                             />
-                             <p className="text-xs text-muted-foreground">PNG, JPG, GIF up to 5MB.</p>
-                        </div>
+            <div className="space-y-6">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Profile</CardTitle>
+                        <CardDescription>This is how your information is displayed on the platform.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                         <div className="flex items-center gap-6">
+                            <Avatar className="h-20 w-20">
+                                <AvatarImage src={avatarUrl || ''} alt={userData.name} />
+                                <AvatarFallback>
+                                    <User className="h-10 w-10" />
+                                </AvatarFallback>
+                            </Avatar>
+                            <div className='space-y-2'>
+                                 <Button variant="outline" onClick={handleUploadClick}>
+                                    <Upload className="mr-2 h-4 w-4"/>
+                                    Upload Avatar
+                                </Button>
+                                <Input 
+                                    type="file" 
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept="image/png, image/jpeg, image/gif"
+                                    onChange={handleAvatarChange}
+                                 />
+                                 <p className="text-xs text-muted-foreground">PNG, JPG, GIF up to 5MB.</p>
+                            </div>
 
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="email">Email Address</Label>
-                        <Input id="email" type="email" defaultValue={userData.email} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="wallet">Stellar Wallet</Label>
-                        <Input id="wallet" defaultValue={userData.wallet} disabled />
-                    </div>
-                    <Button>Update Profile</Button>
-                </CardContent>
-            </Card>
-            <Card className="mt-6">
-                <CardHeader>
-                    <CardTitle>Notifications</CardTitle>
-                    <CardDescription>Choose how you want to be notified.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between rounded-lg border p-4">
-                        <div>
-                            <p className="font-medium">Email Notifications</p>
-                            <p className="text-sm text-muted-foreground">Receive updates on loan applications and account activity.</p>
                         </div>
-                        <Switch defaultChecked />
-                    </div>
-                     <div className="flex items-center justify-between rounded-lg border p-4">
-                        <div>
-                            <p className="font-medium">Partner Offers</p>
-                            <p className="text-sm text-muted-foreground">Get notified about new loan products from partners.</p>
+                         <div className="space-y-2">
+                            <Label htmlFor="email">Email Address</Label>
+                            <Input id="email" type="email" defaultValue={userData.email} />
                         </div>
-                        <Switch />
-                    </div>
-                </CardContent>
-            </Card>
+                         <div className="space-y-2">
+                            <Label htmlFor="wallet">Stellar Wallet</Label>
+                            <Input id="wallet" defaultValue={userData.wallet} disabled />
+                        </div>
+                        <Button>Update Profile</Button>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Appearance</CardTitle>
+                        <CardDescription>Customize the look and feel of the application.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                            <div>
+                                <p className="font-medium">Theme</p>
+                                <p className="text-sm text-muted-foreground">Select a light, dark, or system theme.</p>
+                            </div>
+                            <ThemeToggle />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Notifications</CardTitle>
+                        <CardDescription>Choose how you want to be notified.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                            <div>
+                                <p className="font-medium">Email Notifications</p>
+                                <p className="text-sm text-muted-foreground">Receive updates on loan applications and account activity.</p>
+                            </div>
+                            <Switch defaultChecked />
+                        </div>
+                         <div className="flex items-center justify-between rounded-lg border p-4">
+                            <div>
+                                <p className="font-medium">Partner Offers</p>
+                                <p className="text-sm text-muted-foreground">Get notified about new loan products from partners.</p>
+                            </div>
+                            <Switch />
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     )
 }
+
+    

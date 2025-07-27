@@ -13,8 +13,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CheckCircle, XCircle, FileSignature, Bot, MoreHorizontal, User, BarChart, FileText, Link as LinkIcon, Info } from 'lucide-react';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CheckCircle, Info, FileSignature, Bot, MoreHorizontal, User } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { PartnerPortfolio } from '@/components/partner-portfolio';
 import { LoanActivity } from '@/components/loan-activity';
@@ -95,12 +95,6 @@ export default function PartnerAdminPage() {
             setSelectedApplication(prev => prev && prev.id === id ? {...prev, isExplaining: false} : prev);
         }
     };
-
-    const getStatusVariant = (status: string) => {
-        if (status === 'Approved') return 'default';
-        if (status === 'Denied') return 'destructive';
-        return 'secondary';
-    }
 
     const getScoreColor = (score: number) => {
         if (score >= 750) return "text-green-500";
@@ -259,3 +253,5 @@ export default function PartnerAdminPage() {
         </>
     );
 }
+
+    

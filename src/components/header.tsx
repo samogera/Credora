@@ -16,7 +16,6 @@ import { LifeBuoy, LogOut, Settings, CircleUserRound } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { useContext } from "react";
 import { UserContext } from "@/context/user-context";
-import { ThemeToggle } from "./theme-toggle";
 
 export function Header() {
   const { avatarUrl } = useContext(UserContext);
@@ -26,7 +25,6 @@ export function Header() {
       <div className="flex-1">
         {/* Can add breadcrumbs here */}
       </div>
-      <ThemeToggle />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -60,3 +58,5 @@ export function Header() {
     </header>
   )
 }
+
+    
