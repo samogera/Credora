@@ -30,6 +30,14 @@ export default function SignupPartnerPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!companyName || !website || !email || !password) {
+            toast({
+                variant: 'destructive',
+                title: 'Missing Fields',
+                description: 'Please fill out all fields to create your partner account.'
+            });
+            return;
+        }
         setIsSubmitting(true);
         try {
             await partnerSignup(email, password, companyName, website);

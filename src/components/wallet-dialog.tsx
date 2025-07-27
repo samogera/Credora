@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -19,8 +20,8 @@ import { Label } from "./ui/label";
 
 const wallets = [
     { name: "Lobstr", logo: "https://www.kindpng.com/picc/m/355-3552768_lobstr-wallet-logo-hd-png-download.png" },
-    { name: "Trust Wallet", logo: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRrkZT1UKOFMSsrjqoygGqsKz3hzoahV3bOmQ&s" },
-    { name: "Freighter", logo: "https://pbs.twimg.com/media/Go037k3WwAAEUCC.jpg" },
+    { name: "Trust Wallet", logo: "https://play-lh.googleusercontent.com/cd5BevWohRqLwsI2_i3k4YIVtcO57cIZCs6l20H1Hcdj0P2rFEcX_7QtgKbTM3Sn_A" },
+    { name: "Freighter", logo: "https://lh3.googleusercontent.com/_IWkBPJYpuslJcxNCIxeoJqmKJ8WOek43XeEsE_EiDrMzawR31KTAVweF-oyGVKJjW9kbDkxByD6mpYoV7H8uGQA=s60" },
     { name: "Custom address / other", isCustom: true, dataAiHint: "logo custom" },
 ];
 

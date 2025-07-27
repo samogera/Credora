@@ -375,19 +375,35 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
     
     const partnerSignup = async (email: string, pass: string, name: string, website: string) => {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-        const newPartner = {
-            name,
-            website,
-            logo: `https://placehold.co/40x40/111111/FFFFFF?text=${name.substring(0,2).toUpperCase()}`,
-            description: `A new lending partner in the Credora ecosystem.`,
-            createdAt: serverTimestamp()
-        };
-        await setDoc(doc(db, "partners", userCredential.user.uid), newPartner);
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+            const newPartner = {
+                name,
+                website,
+                logo: `https://placehold.co/40x40/111111/FFFFFF?text=${name.substring(0,2).toUpperCase()}`,
+                description: `A new lending partner in the Credora ecosystem.`,
+                createdAt: serverTimestamp()
+            };
+            await setDoc(doc(db, "partners", userCredential.user.uid), newPartner);
+        } catch (error: any) {
+            console.error("Error during partner signup:", error);
+            // Translate Firebase error codes into user-friendly messages
+            if (error.code === 'auth/email-already-in-use') {
+                throw new Error('This email address is already in use by another account.');
+            } else if (error.code === 'auth/weak-password') {
+                throw new Error('The password is too weak. Please use at least 6 characters.');
+            }
+            throw new Error('An unexpected error occurred during signup. Please try again.');
+        }
     }
     
     const partnerLogin = async (email: string, pass: string) => {
-        await signInWithEmailAndPassword(auth, email, pass);
+       try {
+            await signInWithEmailAndPassword(auth, email, pass);
+        } catch (error: any) {
+            console.error("Error during partner login:", error);
+            throw new Error("Login failed. Please check your email and password.");
+        }
     }
 
     const logout = async () => {
