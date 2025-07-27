@@ -5,6 +5,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
 export default function SettingsPage() {
+    // In a real application, this data would come from a user context or API call
+    const userData = {
+        email: "user@example.com",
+        wallet: "GABC...XYZ",
+    };
+
     return (
         <div className="max-w-2xl mx-auto">
              <div className="space-y-4 mb-6">
@@ -14,16 +20,16 @@ export default function SettingsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Profile</CardTitle>
-                    <CardDescription>Update your personal information.</CardDescription>
+                    <CardDescription>This is how your information is displayed on the platform.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                      <div className="space-y-2">
                         <Label htmlFor="email">Email Address</Label>
-                        <Input id="email" type="email" defaultValue="user@example.com" />
+                        <Input id="email" type="email" defaultValue={userData.email} />
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="wallet">Stellar Wallet</Label>
-                        <Input id="wallet" defaultValue="GABC...XYZ" disabled />
+                        <Input id="wallet" defaultValue={userData.wallet} disabled />
                     </div>
                     <Button>Update Profile</Button>
                 </CardContent>

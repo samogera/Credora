@@ -43,11 +43,17 @@ export function Header() {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>My Account</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem><CircleUserRound className="mr-2" />Profile</DropdownMenuItem>
-          <DropdownMenuItem><Settings className="mr-2" />Settings</DropdownMenuItem>
+           <DropdownMenuItem asChild>
+              <Link href="/dashboard/settings"><CircleUserRound className="mr-2" />Profile</Link>
+           </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard/settings"><Settings className="mr-2" />Settings</Link>
+          </DropdownMenuItem>
           <DropdownMenuItem><LifeBuoy className="mr-2" />Support</DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem><LogOut className="mr-2" />Logout</DropdownMenuItem>
+           <DropdownMenuItem asChild>
+              <Link href="/"><LogOut className="mr-2" />Logout</Link>
+           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>
