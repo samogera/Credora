@@ -176,6 +176,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setLoading(true);
+            clearState(); // Clear all previous state on auth change
             if (currentUser) {
                 setUser(currentUser);
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
@@ -202,7 +203,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     setScoreState(userData?.score === undefined ? null : userData.score);
                 }
             } else {
-                clearState();
+                setIsPartner(null);
             }
             setLoading(false);
         });
@@ -259,7 +260,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             }));
 
             // User notifications listener
-            const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid));
+            const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid), where("for", "==", "user"));
             unsubs.push(onSnapshot(qNotifs, (snapshot) => {
                 const userNotifs = snapshot.docs.map(d => ({ ...d.data(), id: d.id, timestamp: d.data().timestamp?.toDate() } as Notification));
                 setNotifications(userNotifs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
@@ -298,7 +299,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             }));
 
             // Partner notifications listener
-            const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid));
+            const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid), where("for", "==", "partner"));
             unsubs.push(onSnapshot(qNotifs, (snapshot) => {
                 const pNotifs = snapshot.docs.map(d => ({ ...d.data(), id: d.id, timestamp: d.data().timestamp?.toDate() } as Notification));
                 setNotifications(pNotifs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
@@ -404,34 +405,22 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, [user, score, partners, avatarUrl, walletAddress]);
     
      const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
-        const appRef = doc(collection(db, 'applications'), appId);
-        const appDoc = await getDoc(appRef);
-        
-        let appToUpdate: Application;
-        let partnerAppRef: any;
-
-        if (appDoc.exists()) {
-             appToUpdate = { id: appDoc.id, ...appDoc.data() } as Application;
-             partnerAppRef = doc(db, "partners", appToUpdate.partnerId, "applications", appId);
-        } else {
-            // If it doesn't exist in the root, it might be a partner trying to update it.
-            // We need to find which application it is by searching. This is not ideal, but necessary with current structure if root doc is deleted or inaccessible.
-            // A better structure would be to always have the root doc.
-            // For now, let's assume partner is logged in.
-            if (!partner) throw new Error("Partner not found");
-            const partnerAppDocRef = doc(db, "partners", partner.id, "applications", appId);
-            const partnerAppDoc = await getDoc(partnerAppDocRef);
-            if (!partnerAppDoc.exists()) throw new Error("Application not found in partner collection either.");
-            appToUpdate = {id: partnerAppDoc.id, ...partnerAppDoc.data()} as Application;
-            partnerAppRef = partnerAppDocRef;
+        if(!auth.currentUser || !isPartner) {
+            toast({ variant: 'destructive', title: "Permission Denied" });
+            return;
         }
+        
+        const partnerAppRef = doc(db, "partners", auth.currentUser.uid, "applications", appId);
+        const partnerAppDoc = await getDoc(partnerAppRef);
+        if (!partnerAppDoc.exists()) throw new Error("Application not found for this partner.");
+        
+        const appToUpdate = {id: partnerAppDoc.id, ...partnerAppDoc.data()} as Application;
+        const userAppRef = doc(db, "applications", appId);
         
         const batch = writeBatch(db);
 
         // 1. Update the user's application if it exists
-        if(appDoc.exists()) {
-            batch.update(appRef, { status });
-        }
+        batch.update(userAppRef, { status });
 
         // 2. Update the partner's copy
         batch.update(partnerAppRef, { status });
@@ -439,7 +428,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         // 3. Create notification for user
         const notificationType = status === 'Approved' ? 'approval' : 'denial';
         const notificationTitle = `Loan ${status}`;
-        const notificationMessage = `Your application for the ${appToUpdate.loan.name} was ${status.toLowerCase()}.`;
+        const notificationMessage = `Your application for the ${appToUpdate.loan.name} from ${appToUpdate.loan.partnerName} was ${status.toLowerCase()}.`;
         const userNotifRef = doc(collection(db, 'notifications'));
         batch.set(userNotifRef, {
             for: 'user',
@@ -474,7 +463,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         
         await batch.commit();
 
-    }, [partner]);
+    }, [isPartner]);
 
     const userSignLoan = useCallback(async (appId: string) => {
         const appRef = doc(db, "applications", appId);
