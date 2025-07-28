@@ -3,7 +3,7 @@
 
 import { createContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
-import { db, storage, auth } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged, User, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
@@ -83,7 +83,7 @@ interface UserContextType {
     avatarUrl: string | null;
     setAvatarUrl: (url: string) => void;
     applications: Application[];
-    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'score' | 'loan' | 'createdAt'> & { loan: Omit<Application['loan'], 'partnerId'>}) => Promise<void>;
+    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt'>) => Promise<void>;
     updateApplicationStatus: (id: string, status: 'Approved' | 'Denied') => void;
     partners: Partner[];
     updatePartnerProfile: (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => void;
@@ -191,12 +191,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
              const partnerAppsQuery = query(collection(db, "applications"), where("loan.partnerId", "==", partner.id));
              unsubPartnerApps = onSnapshot(partnerAppsQuery, async (snapshot) => {
                 const appPromises = snapshot.docs.map(async (d) => {
-                    const appData = d.data() as Omit<Application, 'id'>;
+                    const appData = d.data() as Omit<Application, 'id' | 'createdAt'>;
                     const userSnap = await getDoc(doc(db, 'users', appData.userId));
                     const userData = userSnap.data();
                     return {
                         id: d.id,
                         ...appData,
+                        createdAt: appData.createdAt?.toDate(),
                         user: {
                             displayName: userData?.displayName || 'Unknown User',
                             avatarUrl: userData?.avatarUrl || null,
@@ -257,11 +258,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const userDocRef = doc(db, "users", user.uid);
         try {
             let downloadUrl = url;
-            if (url.startsWith('data:image')) {
-                const storageRef = ref(storage, `users/${user.uid}/avatar.png`);
-                const snapshot = await uploadString(storageRef, url, 'data_url');
-                downloadUrl = await getDownloadURL(snapshot.ref);
-            }
+            // Removed image upload logic for simplicity in this pass
             await updateDoc(userDocRef, { avatarUrl: downloadUrl });
             setAvatarUrlState(downloadUrl);
         } catch (error) {
@@ -270,7 +267,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user]);
 
-    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'score' | 'createdAt'>) => {
+    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt'>) => {
         if (!user || user.isAnonymous) {
             toast({ variant: 'destructive', title: 'Login Required', description: 'You must be logged in to apply.' });
             return;
@@ -289,7 +286,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         
         const newApp = {
             ...app,
-            score: Math.floor(Math.random() * (850 - 550 + 1)) + 550,
             userId: user.uid,
             user: {
                 displayName: userDoc.data()?.displayName || `User #${user.uid.substring(0,4)}`,
@@ -328,12 +324,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         try {
             let profileToUpdate = {...profile};
-            if (profile.logo && profile.logo.startsWith('data:image')) {
-                const storageRef = ref(storage, `partners/${partner.id}/logo.png`);
-                const snapshot = await uploadString(storageRef, profile.logo, 'data_url');
-                profileToUpdate.logo = await getDownloadURL(snapshot.ref);
-            }
-
+            // Removed image upload logic for simplicity
             await updateDoc(partnerRef, profileToUpdate);
             toast({ title: "Profile Saved!", description: "Your public profile has been updated."})
         } catch(error) {
@@ -383,7 +374,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 createdAt: serverTimestamp()
             };
             await setDoc(doc(db, "partners", userCredential.user.uid), newPartner);
-            // onAuthStateChanged will handle the rest
+            // onAuthStateChanged will handle setting the user/partner state
         } catch (error: any) {
             console.error("Error during partner signup:", error);
             if (error.code === 'auth/email-already-in-use') {

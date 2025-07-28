@@ -24,6 +24,7 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
     const [result, setResult] = useState<GetLoanRecommendationsOutput | null>(null);
 
     const handleGetRecommendations = useCallback(async () => {
+        if (userContextLoading) return;
         setIsLoading(true);
         setError(null);
 
@@ -56,13 +57,11 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
         } finally {
             setIsLoading(false);
         }
-    }, [score, partners]);
+    }, [score, partners, userContextLoading]);
 
     useEffect(() => {
-        if (!userContextLoading) {
-            handleGetRecommendations();
-        }
-    }, [handleGetRecommendations, score, partners, userContextLoading]);
+        handleGetRecommendations();
+    }, [handleGetRecommendations, score, partners]);
 
     const recommendedLoans = result?.recommendations?.filter(r => r.isRecommended) || [];
     const otherLoans = result?.recommendations?.filter(r => !r.isRecommended) || [];
@@ -98,7 +97,25 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                 )}
                 {!showLoading && !error && result && (
                     <div className="space-y-4">
-                        {recommendedLoans.length > 0 ? recommendedLoans.map((rec, index) => (
+                        {partners.length === 0 && (
+                             <Alert>
+                                <Lightbulb className="h-4 w-4" />
+                                <AlertTitle>No Partners Available</AlertTitle>
+                                <AlertDescription>
+                                    There are currently no lending partners in the ecosystem. Please check back later for loan opportunities.
+                                </AlertDescription>
+                            </Alert>
+                        )}
+                        {partners.length > 0 && recommendedLoans.length === 0 && result.improvementSuggestion && (
+                            <Alert>
+                                <Lightbulb className="h-4 w-4" />
+                                <AlertTitle>Actionable Advice</AlertTitle>
+                                <AlertDescription>
+                                    {result.improvementSuggestion}
+                                </AlertDescription>
+                            </Alert>
+                        )}
+                        {recommendedLoans.length > 0 && recommendedLoans.map((rec, index) => (
                              <Alert key={index} className="border-accent/50 text-foreground [&>svg]:text-accent">
                                 <CheckCircle className="h-4 w-4" />
                                 <AlertTitle className="text-accent">
@@ -113,17 +130,7 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                                     </div>
                                 </AlertDescription>
                             </Alert>
-                        )) : (
-                            result.improvementSuggestion && (
-                                <Alert>
-                                    <Lightbulb className="h-4 w-4" />
-                                    <AlertTitle>Actionable Advice</AlertTitle>
-                                    <AlertDescription>
-                                        {result.improvementSuggestion}
-                                    </AlertDescription>
-                                </Alert>
-                            )
-                        )}
+                        ))}
                          {otherLoans.length > 0 && otherLoans.map((rec, index) => (
                              <Alert key={index} variant="default" className="bg-muted/50">
                                 <Info className="h-4 w-4" />
@@ -141,3 +148,5 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
         </Card>
     );
 }
+
+    
