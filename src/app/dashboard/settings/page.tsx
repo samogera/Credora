@@ -39,7 +39,9 @@ export default function SettingsPage() {
         if (file) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                setAvatarUrl(reader.result as string);
+                if(reader.result) {
+                    setAvatarUrl(reader.result as string);
+                }
             };
             reader.readAsDataURL(file);
         }
@@ -87,9 +89,8 @@ export default function SettingsPage() {
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="email">Email Address</Label>
-                            <Input id="email" type="email" defaultValue={userData.email} />
+                            <Input id="email" type="email" defaultValue={userData.email} disabled/>
                         </div>
-                        <Button>Update Profile</Button>
                     </CardContent>
                 </Card>
 

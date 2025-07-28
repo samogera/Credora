@@ -23,6 +23,8 @@ import {
 } from "lucide-react"
 import { Button } from "./ui/button"
 import { Logo } from './logo'
+import { useContext } from 'react'
+import { UserContext } from '@/context/user-context'
 
 const userMenuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -42,9 +44,8 @@ const partnerMenuItems = [
 
 export function SidebarNav() {
   const pathname = usePathname()
-  const isPartnerView = pathname.startsWith('/dashboard/partner-admin');
-
-  const menuItems = isPartnerView ? partnerMenuItems : userMenuItems;
+  const { logout, isPartner } = useContext(UserContext);
+  const menuItems = isPartner ? partnerMenuItems : userMenuItems;
 
   return (
     <>
@@ -66,8 +67,8 @@ export function SidebarNav() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-2">
-         <Button variant="ghost" className="w-full justify-start" asChild>
-            <Link href="/"><LogOut className="mr-2 h-4 w-4" /> Logout</Link>
+         <Button variant="ghost" className="w-full justify-start" onClick={logout}>
+            <LogOut className="mr-2 h-4 w-4" /> Logout
          </Button>
       </SidebarFooter>
     </>

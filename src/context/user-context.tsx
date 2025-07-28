@@ -4,7 +4,7 @@
 import { createContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, auth } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
 import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, deleteUser } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -148,7 +148,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            clearState(); // Clear state on every auth change to prevent data leakage
             if (currentUser) {
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
                 const partnerDocSnap = await getDoc(partnerDocRef);
@@ -172,9 +171,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 }
                 setUser(currentUser);
             } else {
-                setUser(null);
-                setIsPartner(false);
-                setPartner(null);
+                clearState();
             }
             setAuthInitialized(true);
         });
@@ -341,8 +338,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     
     const setAvatarUrl = useCallback(async (url: string) => {
         if (!user || isPartner) return;
+        setAvatarUrlState(url); // Optimistic update
         const userDocRef = doc(db, "users", user.uid);
         await updateDoc(userDocRef, { avatarUrl: url });
+        toast({ title: "Avatar updated!" });
     }, [user, isPartner]);
 
     const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score'>) => {
@@ -486,13 +485,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             // Now delete the auth user
             await deleteUser(currentUser);
             toast({ title: "Account Deleted", description: "Your account has been permanently deleted." });
-            router.push('/');
+            // The onAuthStateChanged listener will handle the redirect and state clearing
         } catch (error: any) {
             console.error("Error deleting account: ", error);
             toast({ variant: 'destructive', title: "Deletion Failed", description: error.message || "An error occurred." });
         }
 
-    }, [isPartner, router]);
+    }, [isPartner]);
     
     const emailSignup = useCallback(async (email: string, pass: string, displayName: string) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
