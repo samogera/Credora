@@ -96,7 +96,7 @@ interface UserContextType {
     setAvatarUrl: (url: string) => void;
     walletAddress: string | null;
     applications: Application[];
-    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar' | 'createdAt' | 'score' | 'partnerId'>) => Promise<void>;
+    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score' | 'partnerId'>) => Promise<void>;
     updateApplicationStatus: (appId: string, status: 'Approved' | 'Denied') => Promise<void>;
     userSignLoan: (appId: string) => Promise<void>;
     partners: Partner[];
@@ -130,9 +130,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const router = useRouter();
 
     const clearState = useCallback(() => {
-        setUser(null);
+        // This function ONLY clears data-related state, not auth state.
         setPartner(null);
-        setIsPartner(null);
         setAvatarUrlState(null);
         setWalletAddress(null);
         setApplications([]);
@@ -140,13 +139,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setLoanActivity([]);
         setPartnerProducts([]);
         setScoreState(null);
-        setLoading(true);
         setDataLoading(true);
     }, []);
 
     const logout = useCallback(async () => {
         await signOut(auth);
         clearState();
+        setUser(null);
+        setIsPartner(null);
         router.push('/login');
     }, [router, clearState]);
     
@@ -175,8 +175,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // Auth state listener - determines user and their role
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            setLoading(true);
-            clearState(); // Clear all previous state on auth change
             if (currentUser) {
                 setUser(currentUser);
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
@@ -198,12 +196,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                        userDocSnap = await getDoc(userDocRef);
                     }
                     setIsPartner(false);
-                    const userData = userDocSnap.data();
-                    setAvatarUrlState(userData?.avatarUrl || null);
-                    setScoreState(userData?.score === undefined ? null : userData.score);
                 }
             } else {
+                setUser(null);
                 setIsPartner(null);
+                clearState();
             }
             setLoading(false);
         });
@@ -211,13 +208,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return () => unsubscribe();
     }, [clearState]);
 
-    // Data listeners setup
+    // Data listeners setup - SEPARATED for clarity and correctness
     useEffect(() => {
         if (loading || isPartner === null || !user) {
-            if(!loading && !user) setDataLoading(false);
+            if (!loading && !user) setDataLoading(false);
             return;
         }
-        
+
         setDataLoading(true);
         const unsubs: (() => void)[] = [];
 
@@ -265,6 +262,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 const userNotifs = snapshot.docs.map(d => ({ ...d.data(), id: d.id, timestamp: d.data().timestamp?.toDate() } as Notification));
                 setNotifications(userNotifs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
             }));
+             setDataLoading(false);
         }
         
         // PARTNER-specific listeners
@@ -304,9 +302,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 const pNotifs = snapshot.docs.map(d => ({ ...d.data(), id: d.id, timestamp: d.data().timestamp?.toDate() } as Notification));
                 setNotifications(pNotifs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
             }));
+            setDataLoading(false);
         }
-
-        setDataLoading(false);
 
         return () => { unsubs.forEach(unsub => unsub()) };
 
@@ -315,17 +312,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // Redirection logic
     useEffect(() => {
        if(!loading && user && isPartner !== null) {
+            const currentPath = window.location.pathname;
             if(isPartner) {
-                router.push('/dashboard/partner-admin');
+                if(!currentPath.startsWith('/dashboard/partner-admin')) router.push('/dashboard/partner-admin');
             } else {
-                 if (score === null) {
-                    router.push('/dashboard/data-sources');
-                } else {
-                    router.push('/dashboard');
-                }
+                 if(!currentPath.startsWith('/dashboard') || currentPath.startsWith('/dashboard/partner-admin')) {
+                     router.push('/dashboard');
+                 }
             }
        }
-    },[user, isPartner, loading, router, score])
+       if(!loading && !user) {
+            const currentPath = window.location.pathname;
+            if(currentPath.startsWith('/dashboard')) router.push('/login');
+       }
+    },[user, isPartner, loading, router]);
 
     const setScore = async (newScore: number | null, walletAddr?: string) => {
         if (!user || isPartner) return;
@@ -420,7 +420,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const batch = writeBatch(db);
 
         // 1. Update the user's application if it exists
-        batch.update(userAppRef, { status });
+        const userAppDoc = await getDoc(userAppRef);
+        if(userAppDoc.exists()) {
+            batch.update(userAppRef, { status });
+        }
 
         // 2. Update the partner's copy
         batch.update(partnerAppRef, { status });
@@ -475,7 +478,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         batch.update(appRef, { status: 'Signed' });
         
         const partnerAppRef = doc(db, "partners", appData.partnerId, "applications", appId);
-        batch.update(partnerAppRef, { status: 'Signed' });
+        if((await getDoc(partnerAppRef)).exists()) {
+            batch.update(partnerAppRef, { status: 'Signed' });
+        }
 
         await batch.commit();
 
