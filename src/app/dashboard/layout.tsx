@@ -1,7 +1,6 @@
 import { SidebarProvider, Sidebar, SidebarInset, SidebarRail } from "@/components/ui/sidebar";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { Header } from "@/components/header";
-import { UserProvider } from "@/context/user-context";
 import { ChatAssistant } from "@/components/chat-assistant";
 
 export default function DashboardLayout({
@@ -10,7 +9,6 @@ export default function DashboardLayout({
     children: React.ReactNode
   }) {
   return (
-    <UserProvider>
       <SidebarProvider>
         <Sidebar collapsible="icon">
           <SidebarNav />
@@ -26,6 +24,5 @@ export default function DashboardLayout({
           <ChatAssistant />
         </SidebarInset>
       </SidebarProvider>
-    </UserProvider>
   );
 }
