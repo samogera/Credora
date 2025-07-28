@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { UserContext, LoanProduct, Application } from '@/context/user-context';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 export default function PartnersPage() {
@@ -97,48 +98,81 @@ export default function PartnersPage() {
         };
     }, [customAmount, selectedLoan]);
 
+    const parseRequirement = (req: string | undefined): number | null => {
+        if (!req) return null;
+        const match = req.match(/\d+/);
+        return match ? parseInt(match[0], 10) : null;
+    }
+
   return (
     <>
         <div className="space-y-4">
             <h1 className="text-3xl font-bold tracking-tight">Lending Partners</h1>
             <p className="text-muted-foreground">Browse loan products from trusted partners in the Credora ecosystem.</p>
         </div>
-        <div className="grid gap-6 mt-6 md:grid-cols-2 lg:grid-cols-3">
-        {partners.map((partner) => (
-            <Card key={partner.id} className="flex flex-col">
-            <CardHeader className="flex flex-row items-center gap-4">
-                <Image src={partner.logo} alt={partner.name} width={40} height={40} className="rounded-md" data-ai-hint="logo" />
-                <div>
-                <CardTitle>{partner.name}</CardTitle>
-                <CardDescription>{partner.description}</CardDescription>
+        <TooltipProvider>
+            <div className="grid gap-6 mt-6 md:grid-cols-2 lg:grid-cols-3">
+            {partners.map((partner) => (
+                <Card key={partner.id} className="flex flex-col">
+                <CardHeader className="flex flex-row items-center gap-4">
+                    <Image src={partner.logo} alt={partner.name} width={40} height={40} className="rounded-md" data-ai-hint="logo" />
+                    <div>
+                    <CardTitle>{partner.name}</CardTitle>
+                    <CardDescription>{partner.description}</CardDescription>
+                    </div>
+                </CardHeader>
+                <CardContent className="flex-grow space-y-3">
+                    <h4 className="font-semibold text-sm">Available Products</h4>
+                    <div className="space-y-2">
+                        {partner.products.map((product) => {
+                            const requiredScore = parseRequirement(product.requirements);
+                            const isEligible = score !== null && requiredScore !== null ? score >= requiredScore : true;
+                            const isButtonDisabled = !canApply || !isEligible;
+                            const tooltipContent = !canApply 
+                                ? "Please connect your wallet to calculate your score first."
+                                : !isEligible 
+                                ? `Your score of ${score} is below the required ${requiredScore}.`
+                                : null;
+
+                            return (
+                                <div key={product.id} className="flex items-center justify-between rounded-md border p-3">
+                                    <div>
+                                        <p className="font-medium">{product.name}</p>
+                                        <p className="text-sm text-muted-foreground">Up to {formatCurrency(product.maxAmount)} at {product.rate}</p>
+                                        {product.requirements && <p className="text-xs text-muted-foreground">Req: {product.requirements}</p>}
+                                    </div>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <div tabIndex={0} className={isButtonDisabled ? 'cursor-not-allowed' : ''}>
+                                                <Button size="sm" onClick={() => handleApplyClick(product, partner.name)} disabled={isButtonDisabled}>
+                                                    Apply
+                                                </Button>
+                                            </div>
+                                        </TooltipTrigger>
+                                        {tooltipContent && (
+                                            <TooltipContent>
+                                                <p>{tooltipContent}</p>
+                                            </TooltipContent>
+                                        )}
+                                    </Tooltip>
+                                </div>
+                            )
+                        })}
+                        {partner.products.length === 0 && (
+                            <p className="text-sm text-center text-muted-foreground pt-4">No products available.</p>
+                        )}
+                    </div>
+                </CardContent>
+                </Card>
+            ))}
+            {partners.length === 0 && (
+                <div className="md:col-span-2 lg:col-span-3 text-center py-16">
+                    <p className="text-muted-foreground">No lending partners have registered yet.</p>
+                    <p className="text-sm text-muted-foreground">Check back soon for loan opportunities.</p>
                 </div>
-            </CardHeader>
-            <CardContent className="flex-grow space-y-3">
-                <h4 className="font-semibold text-sm">Available Products</h4>
-                <div className="space-y-2">
-                    {partner.products.map((product) => (
-                        <div key={product.id} className="flex items-center justify-between rounded-md border p-3">
-                             <div>
-                                <p className="font-medium">{product.name}</p>
-                                <p className="text-sm text-muted-foreground">Up to {formatCurrency(product.maxAmount)} at {product.rate}</p>
-                            </div>
-                            <Button size="sm" onClick={() => handleApplyClick(product, partner.name)} disabled={!canApply}>Apply</Button>
-                        </div>
-                    ))}
-                    {partner.products.length === 0 && (
-                        <p className="text-sm text-center text-muted-foreground pt-4">No products available.</p>
-                    )}
-                </div>
-            </CardContent>
-            </Card>
-        ))}
-        {partners.length === 0 && (
-             <div className="md:col-span-2 lg:col-span-3 text-center py-16">
-                <p className="text-muted-foreground">No lending partners have registered yet.</p>
-                <p className="text-sm text-muted-foreground">Check back soon for loan opportunities.</p>
+            )}
             </div>
-        )}
-        </div>
+        </TooltipProvider>
         <Dialog open={!!selectedLoan} onOpenChange={(isOpen) => !isOpen && setSelectedLoan(null)}>
             <DialogContent>
                 <DialogHeader>

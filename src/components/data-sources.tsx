@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { useState, useContext, useEffect } from "react";
 import { UserContext } from "@/context/user-context";
 import { WalletDialog } from "./wallet-dialog";
 import { toast } from "@/hooks/use-toast";
+import { Skeleton } from "./ui/skeleton";
 
 export function DataSources() {
   const { score, connectWalletAndSetScore } = useContext(UserContext);
@@ -16,6 +18,8 @@ export function DataSources() {
   const [isUtilityConnected, setIsUtilityConnected] = useState(false);
   const [isIdConnected, setIsIdConnected] = useState(false);
   const [isMobileMoneyConnected, setIsMobileMoneyConnected] = useState(false);
+
+  const [connectingSource, setConnectingSource] = useState<'utility' | 'id' | 'mobile' | null>(null);
 
   useEffect(() => {
     setIsWalletConnected(!!score);
@@ -33,21 +37,24 @@ export function DataSources() {
       if (source === 'id') sourceName = 'off-chain ID';
       if (source === 'mobile') sourceName = 'mobile money statement';
       
+      setConnectingSource(source);
+
       toast({
           title: "Connecting Source...",
-          description: `Your ${sourceName} is being securely verified.`,
+          description: `Your ${sourceName} is being securely verified. This may take a moment.`,
       });
 
       setTimeout(() => {
           if (source === 'utility') setIsUtilityConnected(true);
           if (source === 'id') setIsIdConnected(true);
           if (source === 'mobile') setIsMobileMoneyConnected(true);
+          setConnectingSource(null);
 
            toast({
               title: "Source Connected!",
               description: "This data source is now contributing to your Credora Score.",
           });
-      }, 1500);
+      }, 2500);
   }
 
   return (
@@ -86,13 +93,13 @@ export function DataSources() {
                   <p className="text-sm text-muted-foreground">{isUtilityConnected ? 'Connected' : 'Gas, Electric, Water'}</p>
                 </div>
               </div>
-              {isUtilityConnected ? (
+              {connectingSource === 'utility' ? <Skeleton className="h-8 w-24 rounded-md" /> : isUtilityConnected ? (
                 <div className="flex items-center gap-2 text-green-600">
                     <CheckCircle className="h-5 w-5" />
                     <span>Connected</span>
                 </div>
                ) : (
-                <Button variant="outline" size="sm" onClick={() => handleConnectSource('utility')}>
+                <Button variant="outline" size="sm" onClick={() => handleConnectSource('utility')} disabled={!!connectingSource}>
                     <Upload className="mr-2 h-4 w-4" /> Upload
                 </Button>
                )}
@@ -105,13 +112,13 @@ export function DataSources() {
                   <p className="text-sm text-muted-foreground">{isMobileMoneyConnected ? 'Connected' : 'M-Pesa, Airtel'}</p>
                 </div>
               </div>
-              {isMobileMoneyConnected ? (
+              {connectingSource === 'mobile' ? <Skeleton className="h-8 w-24 rounded-md" /> : isMobileMoneyConnected ? (
                 <div className="flex items-center gap-2 text-green-600">
                     <CheckCircle className="h-5 w-5" />
                     <span>Connected</span>
                 </div>
                ) : (
-                <Button variant="outline" size="sm" onClick={() => handleConnectSource('mobile')}>
+                <Button variant="outline" size="sm" onClick={() => handleConnectSource('mobile')} disabled={!!connectingSource}>
                     <Upload className="mr-2 h-4 w-4" /> Upload
                 </Button>
                )}
@@ -124,13 +131,13 @@ export function DataSources() {
                   <p className="text-sm text-muted-foreground">{isIdConnected ? 'Connected' : 'Phone Number'}</p>
                 </div>
               </div>
-               {isIdConnected ? (
+              {connectingSource === 'id' ? <Skeleton className="h-8 w-20 rounded-md" /> : isIdConnected ? (
                 <div className="flex items-center gap-2 text-green-600">
                     <CheckCircle className="h-5 w-5" />
                     <span>Connected</span>
                 </div>
                ) : (
-                <Button variant="outline" size="sm" onClick={() => handleConnectSource('id')}>
+                <Button variant="outline" size="sm" onClick={() => handleConnectSource('id')} disabled={!!connectingSource}>
                     <LinkIcon className="mr-2 h-4 w-4" /> Link
                 </Button>
               )}
@@ -142,4 +149,3 @@ export function DataSources() {
     </>
   );
 }
-
