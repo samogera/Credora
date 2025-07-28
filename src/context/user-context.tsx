@@ -61,7 +61,7 @@ export type Application = {
     status: 'Pending' | 'Approved' | 'Denied' | 'Signed';
     aiExplanation?: ExplainRiskFactorsOutput | null;
     isExplaining?: boolean;
-    createdAt: any;
+    createdAt?: any;
 };
 
 export type Notification = {
@@ -81,6 +81,7 @@ interface UserContextType {
     partner: Partner | null;
     isPartner: boolean;
     loading: boolean;
+    dataLoading: boolean;
     logout: () => Promise<void>;
     emailLogin: (email: string, pass: string) => Promise<void>;
     googleLogin: () => Promise<void>;
@@ -114,6 +115,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [partner, setPartner] = useState<Partner | null>(null);
     const [isPartner, setIsPartner] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [dataLoading, setDataLoading] = useState(true);
     
     const [avatarUrl, setAvatarUrlState] = useState<string | null>(null);
     const [applications, setApplications] = useState<Application[]>([]);
@@ -124,9 +126,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [score, setScoreState] = useState<number | null>(null);
     
     const router = useRouter();
-    
+
     const clearState = useCallback(() => {
-        setUser(null);
+        // This function should ONLY clear data state, not auth state
         setPartner(null);
         setIsPartner(false);
         setAvatarUrlState(null);
@@ -136,14 +138,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setLoanActivity([]);
         setPartnerProducts([]);
         setScoreState(null);
+        setDataLoading(true);
     }, []);
 
     const logout = useCallback(async () => {
         await signOut(auth);
         clearState();
+        setUser(null);
         router.push('/login');
     }, [router, clearState]);
-
+    
     const deleteAccount = useCallback(async () => {
         const currentUser = auth.currentUser;
         if (!currentUser) {
@@ -212,17 +216,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             } else {
                 clearState();
                 setUser(null);
-                setIsPartner(false);
-                setPartner(null);
             }
             setLoading(false);
+            setDataLoading(false);
         });
         return () => unsubscribe();
     }, [router, clearState]);
 
     // Data listeners
     useEffect(() => {
-        if (!user || loading) return;
+        if (loading || dataLoading || !user) return;
 
         let unsubs: (()=>void)[] = [];
 
@@ -246,7 +249,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         
             const qLoanActivity = query(collection(db, "loanActivity"), where("partnerId", "==", user.uid));
             unsubs.push(onSnapshot(qLoanActivity, (snapshot) => {
-                setLoanActivity(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()}) as LoanActivityItem));
+                const activities = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()}) as LoanActivityItem);
+                setLoanActivity(activities.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
             }));
 
             const qApps = query(collection(db, "applications"), where("loan.partnerId", "==", user.uid));
@@ -261,14 +265,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     return { id: d.id, ...appData, createdAt: appData.createdAt?.toDate(), user: userData } as Application;
                 });
                 const appsData = await Promise.all(appPromises);
-                setApplications(appsData.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+                setApplications(appsData.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
             }));
         } else {
             // USER LISTENERS
             const qApps = query(collection(db, "applications"), where("userId", "==", user.uid));
             unsubs.push(onSnapshot(qApps, (snapshot) => {
                 const userApps = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application));
-                setApplications(userApps.sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime()));
+                setApplications(userApps.sort((a,b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
             }));
             
             const qUserLoans = query(collection(db, "loanActivity"), where("userId", "==", user.uid));
@@ -291,7 +295,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             unsubs.forEach(unsub => unsub());
         }
-    }, [user, loading, isPartner]);
+    }, [user, loading, dataLoading, isPartner]);
 
     const setScore = async (score: number | null) => {
         if (!user || isPartner) return;
@@ -493,6 +497,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         partner,
         isPartner,
         loading,
+        dataLoading,
         logout,
         emailLogin,
         googleLogin,
@@ -518,8 +523,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         markNotificationsAsRead,
         loanActivity,
     }), [
-        user, partner, isPartner, loading, logout, emailLogin, googleLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
-        score, connectWalletAndSetScore, avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus, userSignLoan,
+        user, partner, isPartner, loading, dataLoading, logout, emailLogin, googleLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
+        score, setScore, connectWalletAndSetScore, avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus, userSignLoan,
         partners, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct,
         notifications, markNotificationsAsRead, loanActivity,
     ]);
