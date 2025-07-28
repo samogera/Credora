@@ -5,7 +5,7 @@ import { createContext, useState, ReactNode, useEffect, useCallback, useMemo } f
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, auth } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
-import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithRedirect, getRedirectResult, updateProfile, deleteUser } from 'firebase/auth';
+import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, deleteUser } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
@@ -85,7 +85,6 @@ interface UserContextType {
     dataLoading: boolean;
     logout: () => Promise<void>;
     emailLogin: (email: string, pass: string) => Promise<void>;
-    googleLogin: () => Promise<void>;
     emailSignup: (email: string, pass: string, displayName: string) => Promise<void>;
     partnerLogin: (email: string, pass: string) => Promise<void>;
     partnerSignup: (email: string, pass: string, name: string, website: string) => Promise<void>;
@@ -206,11 +205,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             setLoading(false);
         });
 
-        getRedirectResult(auth).catch(error => {
-            console.error("Google Sign-in redirect error:", error);
-            toast({ variant: 'destructive', title: "Google Sign-in Failed", description: "Could not complete sign-in with Google." });
-        });
-
         return () => unsubscribe();
     }, [clearState]);
 
@@ -282,7 +276,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             }));
             
             // Applications submitted TO this partner
-            const qApps = query(collection(db, "applications"), where("partnerId", "==", user.uid));
+            const qApps = query(collection(db, "partners", user.uid, "applications"));
             unsubs.push(onSnapshot(qApps, async (snapshot) => {
                 const appPromises = snapshot.docs.map(async (d) => {
                     const appData = d.data();
@@ -379,17 +373,34 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             },
             createdAt: serverTimestamp()
         };
-        await addDoc(collection(db, "applications"), newApp);
+        
+        const batch = writeBatch(db);
 
-        await addNotification({
-            for: 'partner',
+        // 1. Create the user's application record
+        const userAppRef = doc(collection(db, "applications"));
+        batch.set(userAppRef, newApp);
+        
+        // 2. Create a copy for the partner
+        const partnerAppRef = doc(collection(db, "partners", targetPartner.id, "applications"), userAppRef.id);
+        batch.set(partnerAppRef, newApp);
+
+        // 3. Create a notification for the partner
+        const notificationData = {
+            for: 'partner' as const,
             userId: targetPartner.id,
-            type: 'new_application',
+            type: 'new_application' as const,
             title: 'New Application',
             message: `${user.displayName || 'A user'} applied for $${newApp.amount.toLocaleString()} (${newApp.loan.name}).`,
-            href: `/dashboard/partner-admin`
-        });
-    }, [user, score, partners, addNotification, avatarUrl, walletAddress]);
+            href: `/dashboard/partner-admin`,
+            read: false, 
+            timestamp: serverTimestamp()
+        };
+        const notificationRef = doc(collection(db, 'notifications'));
+        batch.set(notificationRef, notificationData);
+
+        await batch.commit();
+
+    }, [user, score, partners, avatarUrl, walletAddress]);
     
      const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
         const appRef = doc(db, "applications", appId);
@@ -398,42 +409,69 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         const appToUpdate = { id: appDoc.id, ...appDoc.data() } as Application;
         
-        await updateDoc(appRef, { status });
+        const batch = writeBatch(db);
+
+        // 1. Update the user's application
+        batch.update(appRef, { status });
+
+        // 2. Update the partner's copy
+        const partnerAppRef = doc(db, "partners", appToUpdate.partnerId, "applications", appId);
+        batch.update(partnerAppRef, { status });
         
+        // 3. Create notification for user
         const notificationType = status === 'Approved' ? 'approval' : 'denial';
         const notificationTitle = `Loan ${status}`;
         const notificationMessage = `Your application for the ${appToUpdate.loan.name} was ${status.toLowerCase()}.`;
-
-        const userSnap = await getDoc(doc(db, 'users', appToUpdate.userId));
-
-        await addNotification({
+        const userNotifRef = doc(collection(db, 'notifications'));
+        batch.set(userNotifRef, {
             for: 'user',
             userId: appToUpdate.userId,
             type: notificationType,
             title: notificationTitle,
             message: notificationMessage,
-            href: '/dashboard/my-loans'
+            href: '/dashboard/my-loans',
+            read: false,
+            timestamp: serverTimestamp()
         });
 
-        if (status === 'Approved' && userSnap.exists()) {
-            const loanActivityData = {
-                user: { displayName: userSnap.data()?.displayName || 'Unknown User' },
-                userId: appToUpdate.userId,
-                partnerId: appToUpdate.partnerId,
-                partnerName: appToUpdate.loan.partnerName,
-                amount: appToUpdate.amount,
-                repaid: 0,
-                interestAccrued: 0,
-                status: 'Active',
-                createdAt: serverTimestamp(),
-            };
-            await addDoc(collection(db, 'loanActivity'), loanActivityData);
+        // 4. If approved, create loan activity record
+        if (status === 'Approved') {
+            const userSnap = await getDoc(doc(db, 'users', appToUpdate.userId));
+            if(userSnap.exists()){
+                const loanActivityData = {
+                    user: { displayName: userSnap.data()?.displayName || 'Unknown User' },
+                    userId: appToUpdate.userId,
+                    partnerId: appToUpdate.partnerId,
+                    partnerName: appToUpdate.loan.partnerName,
+                    amount: appToUpdate.amount,
+                    repaid: 0,
+                    interestAccrued: 0,
+                    status: 'Active',
+                    createdAt: serverTimestamp(),
+                };
+                const loanActivityRef = doc(collection(db, 'loanActivity'));
+                batch.set(loanActivityRef, loanActivityData);
+            }
         }
-    }, [addNotification]);
+        
+        await batch.commit();
+
+    }, []);
 
     const userSignLoan = useCallback(async (appId: string) => {
         const appRef = doc(db, "applications", appId);
-        await updateDoc(appRef, { status: 'Signed' });
+        const appDoc = await getDoc(appRef);
+        if (!appDoc.exists()) throw new Error("Application not found.");
+        const appData = appDoc.data();
+
+        const batch = writeBatch(db);
+        batch.update(appRef, { status: 'Signed' });
+        
+        const partnerAppRef = doc(db, "partners", appData.partnerId, "applications", appId);
+        batch.update(partnerAppRef, { status: 'Signed' });
+
+        await batch.commit();
+
     }, []);
     
     const updatePartnerProfile = useCallback(async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
@@ -470,11 +508,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
         await updateProfile(userCredential.user, { displayName: displayName.trim() });
     }, []);
-
-    const googleLogin = useCallback(async () => {
-        const provider = new GoogleAuthProvider();
-        await signInWithRedirect(auth, provider);
-    }, []);
     
     const emailLogin = useCallback(async (email: string, pass: string) => {
         await signInWithEmailAndPassword(auth, email, pass);
@@ -505,7 +538,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         dataLoading,
         logout,
         emailLogin,
-        googleLogin,
         emailSignup,
         partnerLogin,
         partnerSignup,
@@ -529,7 +561,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         markNotificationsAsRead,
         loanActivity,
     }), [
-        user, partner, isPartner, loading, dataLoading, logout, emailLogin, googleLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
+        user, partner, isPartner, loading, dataLoading, logout, emailLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
         score, connectWalletAndSetScore, avatarUrl, setAvatarUrl, walletAddress, applications, addApplication, updateApplicationStatus, userSignLoan,
         partners, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct,
         notifications, markNotificationsAsRead, loanActivity,
