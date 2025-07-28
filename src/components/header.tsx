@@ -23,7 +23,7 @@ import { Badge } from "./ui/badge";
 import { formatDistanceToNow } from "date-fns";
 
 export function Header() {
-  const { avatarUrl, notifications, partner } = useContext(UserContext);
+  const { avatarUrl, notifications, partner, logout } = useContext(UserContext);
   const pathname = usePathname();
   const isPartnerView = pathname.startsWith('/dashboard/partner-admin');
 
@@ -74,15 +74,17 @@ export function Header() {
              <h3 className="text-sm font-medium px-2 py-1">Notifications</h3>
           </div>
           <div className="space-y-1 p-2 max-h-80 overflow-y-auto">
-            {relevantNotifications.length > 0 ? relevantNotifications.slice(0, 5).map((notification, index) => (
-              <div key={index} className="flex items-start gap-3 rounded-md p-2 text-sm hover:bg-accent">
-                <div className="mt-1">{getNotificationIcon(notification.type)}</div>
-                <div className="flex-1">
-                  <p className="font-semibold">{notification.title}</p>
-                  <p className="text-xs text-muted-foreground">{notification.message}</p>
-                  <p className="text-xs text-muted-foreground/70 mt-1">{formatDistanceToNow(notification.timestamp, { addSuffix: true })}</p>
+            {relevantNotifications.length > 0 ? relevantNotifications.slice(0, 5).map((notification) => (
+              <Link key={notification.id} href={notification.href} passHref>
+                <div className="flex items-start gap-3 rounded-md p-2 text-sm hover:bg-accent cursor-pointer">
+                  <div className="mt-1">{getNotificationIcon(notification.type)}</div>
+                  <div className="flex-1">
+                    <p className="font-semibold">{notification.title}</p>
+                    <p className="text-xs text-muted-foreground">{notification.message}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">{formatDistanceToNow(notification.timestamp, { addSuffix: true })}</p>
+                  </div>
                 </div>
-              </div>
+              </Link>
             )) : (
               <p className="text-center text-sm text-muted-foreground p-4">No new notifications.</p>
             )}
@@ -103,7 +105,7 @@ export function Header() {
             className="overflow-hidden rounded-full"
           >
              <Avatar>
-                <AvatarImage src={isPartnerView ? partner?.logo : avatarUrl} alt="User Avatar" data-ai-hint="avatar" />
+                <AvatarImage src={isPartnerView ? partner?.logo : avatarUrl || undefined} alt="User Avatar" data-ai-hint="avatar" />
                 <AvatarFallback>
                     {isPartnerView ? <Building /> : <CircleUserRound />}
                 </AvatarFallback>
@@ -120,8 +122,8 @@ export function Header() {
             <Link href="/dashboard/support"><LifeBuoy className="mr-2 h-4 w-4" />Support</Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-           <DropdownMenuItem asChild>
-              <Link href="/"><LogOut className="mr-2 h-4 w-4" />Logout</Link>
+           <DropdownMenuItem onClick={logout}>
+              <LogOut className="mr-2 h-4 w-4" />Logout
            </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

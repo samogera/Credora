@@ -73,6 +73,7 @@ export type Notification = {
     message: string;
     timestamp: Date;
     read: boolean;
+    href: string;
 };
 
 interface UserContextType {
@@ -141,8 +142,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const setScore = async (score: number | null) => {
         if (!user || isPartner) return;
         const userDocRef = doc(db, "users", user.uid);
-        await updateDoc(userDocRef, { score: score });
-        setScoreState(score);
+        try {
+            await updateDoc(userDocRef, { score: score });
+            setScoreState(score);
+        } catch (error) {
+            console.error("Error setting score:", error);
+        }
     }
 
     const addNotification = useCallback(async (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
@@ -164,13 +169,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     setIsPartner(true);
                     setPartner({ id: currentUser.uid, ...partnerDocSnap.data() } as Partner);
                 } else {
+                    setIsPartner(false);
                     const userDocRef = doc(db, "users", currentUser.uid);
                     const userDocSnap = await getDoc(userDocRef);
                      if (userDocSnap.exists()) {
                         const data = userDocSnap.data();
                         setAvatarUrlState(data.avatarUrl || currentUser.photoURL || null);
-                        setScoreState(data.score === undefined ? null : data.score);
+                        const userScore = data.score === undefined ? null : data.score;
+                        setScoreState(userScore);
+                        if (userScore === null) {
+                            router.push('/dashboard/data-sources');
+                        }
                      } else {
+                         // This is a new user signing up
                          await setDoc(userDocRef, { 
                             displayName: currentUser.displayName || `User-${currentUser.uid.substring(0,5)}`, 
                             email: currentUser.email,
@@ -178,8 +189,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                             score: null,
                             createdAt: serverTimestamp()
                         });
+                        setScoreState(null);
+                        router.push('/dashboard/data-sources');
                      }
-                    setIsPartner(false);
                 }
                 setUser(currentUser);
             }
@@ -187,11 +199,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         });
         
         return () => unsubscribe();
-    }, []);
+    }, [router]);
     
     // Listener for ALL partners (for user view)
     useEffect(() => {
-        if (!authInitialized || !user) return; // Only run when user is logged in
+        if (!authInitialized || isPartner) return;
     
         const unsubPartners = onSnapshot(collection(db, "partners"), async (snapshot) => {
             const partnerListPromises = snapshot.docs.map(async (pDoc) => {
@@ -210,7 +222,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }, (error) => console.error("Partner listener error: ", error));
     
         return () => unsubPartners();
-    }, [authInitialized, user]);
+    }, [authInitialized, user, isPartner]);
 
     // Listener for user-specific data (their applications and loans)
     useEffect(() => {
@@ -326,7 +338,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         if (!user || isPartner) return;
         const newScore = Math.floor(Math.random() * (850 - 550 + 1)) + 550;
         await setScore(newScore);
-    }, [user, isPartner]);
+        router.push('/dashboard');
+    }, [user, isPartner, router]);
     
     const setAvatarUrl = useCallback(async (url: string) => {
         if (!user || isPartner) return;
@@ -358,6 +371,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             type: 'new_application',
             title: 'New Application',
             message: `${user.displayName || 'A new user'} applied for $${newApp.amount.toLocaleString()} (${newApp.loan.name}).`,
+            href: '/dashboard/partner-admin'
         })
     }, [user, partners, addNotification, score]);
     
@@ -375,6 +389,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 type: 'approval',
                 title: `Loan Approved`,
                 message: `Your application for the ${appToUpdate.loan.name} is approved! Please sign the contract on your dashboard to receive your funds.`,
+                href: '/dashboard'
             });
         } else { // Denied
             await addNotification({
@@ -383,6 +398,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 type: 'denial',
                 title: `Loan Denied`,
                 message: `Your application for the ${appToUpdate.loan.name} has been denied.`,
+                href: '/dashboard/my-loans'
             });
         }
     }, [applications, addNotification]);
@@ -419,6 +435,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             type: 'info',
             title: 'Loan Activated',
             message: `${appToSign.user.displayName} has signed the contract. The loan is now active.`,
+            href: '/dashboard/partner-admin'
         });
         await addNotification({
             for: 'user',
@@ -426,6 +443,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             type: 'info',
             title: 'Funds Disbursed!',
             message: `Funds for your ${appToSign.loan.name} have been disbursed. You can track your loan in the 'My Loans' section.`,
+            href: '/dashboard/my-loans'
         })
 
     }, [applications, addNotification]);
@@ -469,50 +487,32 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
         try {
             // Firestore deletion must happen before auth deletion due to rules
-            if (isPartner) {
-                await deleteDoc(doc(db, "partners", currentUser.uid));
-            } else {
-                await deleteDoc(doc(db, "users", currentUser.uid));
-            }
+            const docRef = doc(db, isPartner ? "partners" : "users", currentUser.uid);
+            await deleteDoc(docRef);
+
             // Now delete the auth user
             await deleteUser(currentUser);
             toast({ title: "Account Deleted", description: "Your account has been permanently deleted." });
+            router.push('/');
         } catch (error: any) {
             console.error("Error deleting account: ", error);
             if (error.code === 'auth/requires-recent-login') {
                 toast({ variant: 'destructive', title: "Login Required", description: "This is a sensitive action. Please log in again before deleting your account." });
+                logout();
             } else {
                 toast({ variant: 'destructive', title: "Deletion Failed", description: error.message || "An error occurred." });
             }
         }
-    }, [isPartner]);
+    }, [isPartner, router]);
     
     const emailSignup = useCallback(async (email: string, pass: string, displayName: string) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
         await updateProfile(userCredential.user, { displayName: displayName.trim() });
-        await setDoc(doc(db, "users", userCredential.user.uid), {
-            displayName: displayName.trim(),
-            email: userCredential.user.email,
-            avatarUrl: null,
-            score: null,
-            createdAt: serverTimestamp()
-        });
     }, []);
 
     const googleLogin = useCallback(async () => {
         const provider = new GoogleAuthProvider();
-        const result = await signInWithPopup(auth, provider);
-        const userDocRef = doc(db, "users", result.user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (!userDocSnap.exists()) {
-             await setDoc(userDocRef, { 
-                displayName: result.user.displayName || `User-${result.user.uid.substring(0,5)}`, 
-                email: result.user.email,
-                avatarUrl: result.user.photoURL,
-                score: null, 
-                createdAt: serverTimestamp()
-            });
-        }
+        await signInWithPopup(auth, provider);
     }, []);
     
     const emailLogin = useCallback(async (email: string, pass: string) => {
@@ -573,7 +573,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         loanActivity,
     }), [
         user, partner, isPartner, loading, logout, emailLogin, googleLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
-        score, setScore, connectWalletAndSetScore, avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus, userSignLoan,
+        score, connectWalletAndSetScore, avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus, userSignLoan,
         partners, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct,
         notifications, markNotificationsAsRead, loanActivity
     ]);
@@ -584,5 +584,3 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
-
-    

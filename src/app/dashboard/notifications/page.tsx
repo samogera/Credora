@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useContext } from 'react';
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -92,17 +93,19 @@ function NotificationItem({ notification, isLast }: { notification: Notification
     
     return (
       <>
-        <div className="flex items-start gap-4 p-4 hover:bg-muted/50 rounded-lg">
-            <Avatar className="h-10 w-10 border">
-                <AvatarFallback>{getIcon(notification.type)}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-                <h4 className="font-semibold">{notification.title}</h4>
-                <p className="text-sm text-muted-foreground">{notification.message}</p>
-                <p className="text-xs text-muted-foreground mt-1">{formatDistanceToNow(notification.timestamp, { addSuffix: true })}</p>
-            </div>
-            {!notification.read && <div className="h-2.5 w-2.5 rounded-full bg-primary self-center" title="Unread"></div>}
-        </div>
+        <Link href={notification.href} passHref>
+          <div className="flex items-start gap-4 p-4 hover:bg-muted/50 rounded-lg cursor-pointer">
+              <Avatar className="h-10 w-10 border">
+                  <AvatarFallback>{getIcon(notification.type)}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                  <h4 className="font-semibold">{notification.title}</h4>
+                  <p className="text-sm text-muted-foreground">{notification.message}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{formatDistanceToNow(notification.timestamp, { addSuffix: true })}</p>
+              </div>
+              {!notification.read && <div className="h-2.5 w-2.5 rounded-full bg-primary self-center" title="Unread"></div>}
+          </div>
+        </Link>
         {!isLast && <Separator />}
       </>
     )
