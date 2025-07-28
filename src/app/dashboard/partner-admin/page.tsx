@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, Info, FileSignature, Bot, MoreHorizontal, User } from 'lucide-react';
+import { CheckCircle, Info, FileSignature, Bot, MoreHorizontal, User, XCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { PartnerPortfolio } from '@/components/partner-portfolio';
 import { LoanActivity } from '@/components/loan-activity';
@@ -27,26 +27,17 @@ import { UserContext, Application } from '@/context/user-context';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function PartnerAdminPage() {
-    const { applications, updateApplicationStatus, addNotification } = useContext(UserContext);
+    const { applications, updateApplicationStatus } = useContext(UserContext);
     const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
     const [isSigning, setIsSigning] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
 
     const handleDecision = (appToUpdate: Application, decision: 'Approved' | 'Denied') => {
         updateApplicationStatus(appToUpdate.id, decision);
-        
-        addNotification({
-            for: 'user',
-            userId: appToUpdate.userId,
-            type: decision === 'Approved' ? 'approval' : 'denial',
-            title: `Loan ${decision}`,
-            message: `Your application for the ${appToUpdate.loan.name} for $${appToUpdate.amount.toLocaleString()} has been ${decision.toLowerCase()}.`,
-            read: false,
+        toast({
+            title: `Application ${decision}`,
+            description: `The application from ${appToUpdate.user.displayName} has been ${decision.toLowerCase()}.`
         });
-
-        if (decision === 'Approved') {
-            setSelectedApplication({...appToUpdate, status: 'Approved' });
-        }
     };
     
     const handleSignContract = () => {
@@ -152,8 +143,8 @@ export default function PartnerAdminPage() {
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuItem onClick={() => handleViewProfile(app)}>View Profile</DropdownMenuItem>
-                                                    <DropdownMenuItem className="text-green-600" onClick={() => handleDecision(app, 'Approved')}>Approve</DropdownMenuItem>
-                                                    <DropdownMenuItem className="text-red-600" onClick={() => handleDecision(app, 'Denied')}>Deny</DropdownMenuItem>
+                                                    <DropdownMenuItem className="text-green-600 focus:text-green-600" onClick={() => handleDecision(app, 'Approved')}>Approve</DropdownMenuItem>
+                                                    <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => handleDecision(app, 'Denied')}>Deny</DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </TableCell>
@@ -237,6 +228,9 @@ export default function PartnerAdminPage() {
                          <Button variant="secondary" onClick={() => setIsProfileOpen(false)}>Close</Button>
                          <Button className="bg-green-600 hover:bg-green-700" onClick={() => { setIsProfileOpen(false); selectedApplication && handleDecision(selectedApplication, 'Approved')}}>
                             <CheckCircle className="mr-2 h-4 w-4" /> Approve Loan
+                         </Button>
+                         <Button variant="destructive" onClick={() => { setIsProfileOpen(false); selectedApplication && handleDecision(selectedApplication, 'Denied')}}>
+                            <XCircle className="mr-2 h-4 w-4" /> Deny Loan
                          </Button>
                     </DialogFooter>
                  </DialogContent>

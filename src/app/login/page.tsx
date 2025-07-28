@@ -47,7 +47,6 @@ export default function LoginPage() {
             title: 'Login Failed',
             description: error.message || 'Please check your credentials and try again.'
         });
-    } finally {
         setIsSubmitting(false);
     }
   }
@@ -62,7 +61,6 @@ export default function LoginPage() {
             title: 'Login Failed',
             description: error.message || 'Could not sign in with Google.'
         });
-    } finally {
         setIsSubmitting(false);
     }
   }

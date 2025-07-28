@@ -89,5 +89,3 @@ export function ApplicationStatus() {
     </Card>
   );
 }
-
-    

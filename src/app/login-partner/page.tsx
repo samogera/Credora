@@ -42,7 +42,6 @@ export default function LoginPartnerPage() {
                 title: 'Login Failed',
                 description: error.message || 'Please check your credentials and try again.'
             });
-        } finally {
             setIsSubmitting(false);
         }
     }

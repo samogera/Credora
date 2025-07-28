@@ -22,7 +22,7 @@ import { UserContext, LoanProduct, Application } from '@/context/user-context';
 
 
 export default function PartnersPage() {
-    const { partners, addApplication, addNotification, user } = useContext(UserContext);
+    const { partners, addApplication, user } = useContext(UserContext);
     const [selectedLoan, setSelectedLoan] = useState<LoanProduct & { partnerName: string } | null>(null);
     const [isApplying, setIsApplying] = useState(false);
     const [customAmount, setCustomAmount] = useState(500);
@@ -36,27 +36,19 @@ export default function PartnersPage() {
         if (!selectedLoan || !user) return;
         setIsApplying(true);
 
-        const newApplication: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar'> = {
+        const newApplication: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar' | 'createdAt'> = {
             score: 785, // Dummy score
             loan: {
                 id: selectedLoan.id,
                 name: selectedLoan.name,
                 partnerName: selectedLoan.partnerName,
+                partnerId: '', // This will be set in the context
             },
             amount: customAmount,
             status: 'Pending' as const,
         };
 
         addApplication(newApplication);
-
-        addNotification({
-            for: 'partner',
-            userId: 'partner-1', // Hardcoded partner ID for now
-            type: 'new_application',
-            title: 'New Application',
-            message: `${user.displayName || 'A new user'} applied for $${customAmount.toLocaleString()} (${selectedLoan.name}).`,
-            read: false,
-        })
 
         setTimeout(() => {
             setIsApplying(false);
@@ -80,7 +72,7 @@ export default function PartnersPage() {
         </div>
         <div className="grid gap-6 mt-6 md:grid-cols-2 lg:grid-cols-3">
         {partners.map((partner) => (
-            <Card key={partner.name} className="flex flex-col">
+            <Card key={partner.id} className="flex flex-col">
             <CardHeader className="flex flex-row items-center gap-4">
                 <Image src={partner.logo} alt={partner.name} width={40} height={40} className="rounded-md" data-ai-hint="logo" />
                 <div>
@@ -97,7 +89,7 @@ export default function PartnersPage() {
                                 <p className="font-medium">{product.name}</p>
                                 <p className="text-sm text-muted-foreground">Up to {formatCurrency(product.maxAmount)} at {product.rate}</p>
                             </div>
-                            <Button size="sm" onClick={() => handleApplyClick(product, partner.name)}>Apply</Button>
+                            <Button size="sm" onClick={() => handleApplyClick(product, partner.name)} disabled={!user}>Apply</Button>
                         </div>
                     ))}
                     {partner.products.length === 0 && (
@@ -164,5 +156,3 @@ export default function PartnersPage() {
     </>
   );
 }
-
-    

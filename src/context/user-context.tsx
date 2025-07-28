@@ -1,7 +1,7 @@
 
 "use client";
 
-import { createContext, useState, ReactNode, useEffect, useCallback, useMemo, useContext } from 'react';
+import { createContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, auth } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
@@ -118,6 +118,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            setUser(null);
+            setPartner(null);
+            setIsPartner(false);
+
             if (currentUser) {
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
                 const partnerDocSnap = await getDoc(partnerDocRef);
@@ -138,13 +142,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                         });
                     }
                     setIsPartner(false);
-                    setPartner(null);
                     setUser(currentUser);
                 }
-            } else {
-                setUser(null);
-                setPartner(null);
-                setIsPartner(false);
             }
             setAuthInitialized(true);
         });
@@ -189,8 +188,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         if (!partner || !isPartner) {
             setPartnerProducts([]);
-            setLoanActivity([]);
-            setApplications([]);
+            if(!isPartner) setLoanActivity([]); // Clear loan activity if not a partner
+            if(!isPartner) setApplications([]); // Clear applications if not a partner
             return;
         }
 
@@ -382,7 +381,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             createdAt: serverTimestamp()
         };
         await addDoc(collection(db, "applications"), newApp);
-    }, [user, partners]);
+
+         await addNotification({
+            for: 'partner',
+            userId: targetPartner.id,
+            type: 'new_application',
+            title: 'New Application',
+            message: `${newApp.user.displayName} applied for $${newApp.amount.toLocaleString()} (${newApp.loan.name}).`,
+            read: false,
+        })
+    }, [user, partners, addNotification]);
     
     const updatePartnerProfile = useCallback(async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
         if (!partner) return;
@@ -500,13 +508,3 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
-
-export const useUserContext = () => {
-    const context = useContext(UserContext);
-    if (context === undefined) {
-        throw new Error('useUserContext must be used within a UserProvider');
-    }
-    return context;
-};
-
-    
