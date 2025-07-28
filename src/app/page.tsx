@@ -12,14 +12,14 @@ export default function LandingPage() {
           <Logo />
         </Link>
         <nav className="flex items-center gap-2 sm:gap-4">
+          <Button variant="ghost" asChild>
+            <Link href="/login">User Login</Link>
+          </Button>
           <Button variant="ghost" asChild className="hidden sm:inline-flex">
             <Link href="/login-partner">Partner Login</Link>
           </Button>
-          <Button variant="ghost" asChild>
-            <Link href="/login">Log In</Link>
-          </Button>
           <Button asChild>
-            <Link href="/signup">Get Started</Link>
+            <Link href="/signup-partner">Become a Partner</Link>
           </Button>
         </nav>
       </header>
@@ -35,7 +35,7 @@ export default function LandingPage() {
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Button size="lg" asChild className="w-full sm:w-auto">
-                <Link href="/signup">Connect Wallet & Get Score</Link>
+                <Link href="/signup">Get Started</Link>
               </Button>
             </div>
           </div>
