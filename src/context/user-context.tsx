@@ -101,7 +101,7 @@ interface UserContextType {
     walletAddress: string | null;
     applications: Application[];
     addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score' | 'partnerId' >) => Promise<void>;
-    updateApplicationStatus: (appId: string, status: 'Approved' | 'Denied', borrowerAddress?: string, amount?: number) => Promise<void>;
+    updateApplicationStatus: (appId: string, status: 'Approved' | 'Denied') => Promise<void>;
     userSignLoan: (appId: string) => Promise<void>;
     partners: Partner[];
     updatePartnerProfile: (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => void;
@@ -409,7 +409,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     }, [user, score, partners, avatarUrl, walletAddress]);
     
-     const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied', borrowerAddress?: string, amount?: number) => {
+    const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
         if(!auth.currentUser || !isPartner) {
             toast({ variant: 'destructive', title: "Permission Denied" });
             return;
@@ -420,7 +420,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         if (!appDoc.exists()) throw new Error("Application not found.");
         const appToUpdate = appDoc.data() as Application;
 
-        // Check if the current partner is the one who should be actioning this
         if(appToUpdate.loan.partnerId !== auth.currentUser.uid) {
              toast({ variant: 'destructive', title: "Permission Denied" });
              return;
@@ -443,42 +442,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             read: false,
             timestamp: serverTimestamp()
         });
-
-        if (status === 'Approved' && borrowerAddress && amount) {
-             try {
-                // TODO: REPLACE WITH REAL SOROBAN CALL
-                const txHash = await createLoan(auth.currentUser.uid, borrowerAddress, amount);
-                const loanId = txHash.split('-').pop(); // Extract ID from mock hash
-
-                const loanActivityData: Omit<LoanActivityItem, 'id' | 'createdAt'> = {
-                    sorobanLoanId: loanId,
-                    user: { displayName: appToUpdate.user?.displayName || 'Unknown User' },
-                    userId: appToUpdate.userId,
-                    partnerId: appToUpdate.loan.partnerId,
-                    partnerName: appToUpdate.loan.partnerName,
-                    amount: appToUpdate.amount,
-                    repaid: 0,
-                    interestAccrued: 0,
-                    status: 'Active',
-                };
-                const loanActivityRef = doc(collection(db, 'loanActivity'));
-                batch.set(loanActivityRef, {...loanActivityData, createdAt: serverTimestamp()});
-                 toast({
-                    title: "Mock Loan Created!",
-                    description: `The user has been notified. Funds will be disbursed once they sign the contract.`
-                });
-
-            } catch (e: any) {
-                console.error("Mock Soroban error:", e);
-                toast({
-                    title: "Soroban Mock Error",
-                    description: "Could not create loan on the mock Soroban network.",
-                    variant: 'destructive',
-                });
-                // Do not commit the batch if soroban call fails
-                return;
-            }
-        }
         
         await batch.commit();
 
@@ -486,13 +449,47 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const userSignLoan = useCallback(async (appId: string) => {
         if (!user || isPartner) return;
+        
         const appRef = doc(db, "applications", appId);
         const appDoc = await getDoc(appRef);
         if (!appDoc.exists() || appDoc.data().userId !== user.uid) {
             throw new Error("Application not found or permission denied.");
         }
-        await updateDoc(appRef, { status: 'Signed' });
+        
+        const appData = appDoc.data() as Application;
+        
+        const batch = writeBatch(db);
+        batch.update(appRef, { status: 'Signed' });
 
+        try {
+            // TODO: REPLACE WITH REAL SOROBAN CALL
+            const txHash = await createLoan(appData.loan.partnerId, appData.user?.walletAddress || '', appData.amount);
+            const loanId = txHash.split('-').pop(); // Extract ID from mock hash
+
+            const loanActivityData: Omit<LoanActivityItem, 'id' | 'createdAt'> = {
+                sorobanLoanId: loanId,
+                user: { displayName: appData.user?.displayName || 'Unknown User' },
+                userId: appData.userId,
+                partnerId: appData.loan.partnerId,
+                partnerName: appData.loan.partnerName,
+                amount: appData.amount,
+                repaid: 0,
+                interestAccrued: 0,
+                status: 'Active',
+            };
+            const loanActivityRef = doc(collection(db, 'loanActivity'));
+            batch.set(loanActivityRef, {...loanActivityData, createdAt: serverTimestamp()});
+
+            await batch.commit();
+
+        } catch (e: any) {
+            console.error("Mock Soroban error:", e);
+            toast({
+                title: "Soroban Mock Error",
+                description: "Could not create loan on the mock Soroban network.",
+                variant: 'destructive',
+            });
+        }
     }, [user, isPartner]);
     
     const updatePartnerProfile = useCallback(async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
@@ -587,7 +584,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         notifications,
         markNotificationsAsRead,
         loanActivity,
-        refreshLoanActivity,
+        refreshLoanActivity
     }), [
         user, partner, isPartner, loading, dataLoading, logout, emailLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
         score, connectWalletAndSetScore, avatarUrl, setAvatarUrl, walletAddress, applications, addApplication, updateApplicationStatus, userSignLoan,
