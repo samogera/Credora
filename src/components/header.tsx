@@ -23,7 +23,7 @@ import { Badge } from "./ui/badge";
 import { formatDistanceToNow } from "date-fns";
 
 export function Header() {
-  const { avatarUrl, notifications } = useContext(UserContext);
+  const { avatarUrl, notifications, partner } = useContext(UserContext);
   const pathname = usePathname();
   const isPartnerView = pathname.startsWith('/dashboard/partner-admin');
 
@@ -103,7 +103,7 @@ export function Header() {
             className="overflow-hidden rounded-full"
           >
              <Avatar>
-                <AvatarImage src={isPartnerView ? '' : avatarUrl || ''} alt="User Avatar" data-ai-hint="avatar" />
+                <AvatarImage src={isPartnerView ? partner?.logo : avatarUrl} alt="User Avatar" data-ai-hint="avatar" />
                 <AvatarFallback>
                     {isPartnerView ? <Building /> : <CircleUserRound />}
                 </AvatarFallback>
