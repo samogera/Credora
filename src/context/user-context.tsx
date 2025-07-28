@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { createContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
@@ -44,6 +45,8 @@ export type LoanActivityItem = {
     partnerId: string;
     partnerName: string;
     userId: string;
+    term: number;
+    interestRate: number;
 };
 
 export type Application = {
@@ -214,7 +217,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         
         const updatedLoanActivity = await Promise.all(snapshot.docs.map(async (doc) => {
             const loan = doc.data() as LoanActivityItem;
-            if (!loan.sorobanLoanId) return loan;
+            if (!loan.sorobanLoanId || isNaN(parseInt(loan.sorobanLoanId))) return loan;
             // TODO: REPLACE WITH REAL SOROBAN CALL
             const onChainLoan = await getLoan(parseInt(loan.sorobanLoanId, 10));
             return {
@@ -258,12 +261,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 setApplications(userApps.sort((a,b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
             }));
             
-            // Listen to user's loans
-            const qUserLoans = query(collection(db, "loanActivity"), where("userId", "==", user.uid));
-            unsubs.push(onSnapshot(qUserLoans, (snapshot) => {
-                const userLoans = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate()}) as LoanActivityItem);
-                setLoanActivity(userLoans.sort((a,b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
-            }));
+            refreshLoanActivity();
     
             // Fetch all partners
             unsubs.push(onSnapshot(collection(db, "partners"), async (snapshot) => {
@@ -290,12 +288,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
             }));
         
-            // Listen to partner's loans
-            const qPartnerLoans = query(collection(db, "loanActivity"), where("partnerId", "==", user.uid));
-            unsubs.push(onSnapshot(qPartnerLoans, (snapshot) => {
-                const pLoans = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate()}) as LoanActivityItem);
-                setLoanActivity(pLoans.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
-            }));
+            refreshLoanActivity();
             
             // Listen for applications submitted to this partner
             const qPartnerApps = query(collection(db, "applications"), where("loan.partnerId", "==", user.uid));
@@ -318,7 +311,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     
         return () => { unsubs.forEach(unsub => unsub()) };
     
-    }, [user, isPartner]);
+    }, [user, isPartner, refreshLoanActivity]);
     
     // Redirect useEffect
     useEffect(() => {
@@ -454,7 +447,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         });
         
         await batch.commit();
-
     }, [isPartner]);
 
     const userSignLoan = useCallback(async (appId: string) => {
@@ -477,12 +469,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 appData.loan.interestRate,
                 appData.loan.term
             );
-            const loanId = txHash.split('-').pop(); // Extract ID from mock hash
+            
+            // Correctly parse the ID from the mock hash
+            const loanId = txHash.split('-').pop(); 
+            if(!loanId || isNaN(parseInt(loanId))) {
+                throw new Error("Invalid loan ID returned from mock Soroban.");
+            }
 
             const rate = appData.loan.interestRate / 100 / 12;
             const term = appData.loan.term;
-            const monthlyPayment = appData.amount * rate * Math.pow(1 + rate, term) / (Math.pow(1 + rate, term) - 1);
-            const totalRepayment = monthlyPayment * term;
+            const monthlyPayment = term > 0 ? (appData.amount * rate * Math.pow(1 + rate, term)) / (Math.pow(1 + rate, term) - 1) : appData.amount;
+            const totalRepayment = term > 0 ? monthlyPayment * term : appData.amount;
             const totalInterest = totalRepayment - appData.amount;
 
             const loanActivityData: Omit<LoanActivityItem, 'id' | 'createdAt'> = {
@@ -495,6 +492,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 repaid: 0,
                 interestAccrued: totalInterest,
                 status: 'Active',
+                term: appData.loan.term,
+                interestRate: appData.loan.interestRate
             };
 
             const batch = writeBatch(db);
@@ -504,16 +503,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             batch.set(loanActivityRef, {...loanActivityData, createdAt: serverTimestamp()});
 
             await batch.commit();
+            await refreshLoanActivity(); // Refresh data for both user and partner
 
         } catch (e: any) {
             console.error("Mock Soroban error:", e);
             toast({
                 title: "Soroban Mock Error",
-                description: "Could not create loan on the mock Soroban network.",
+                description: e.message || "Could not create loan on the mock Soroban network.",
                 variant: 'destructive',
             });
         }
-    }, [user, isPartner]);
+    }, [user, isPartner, refreshLoanActivity]);
     
     const updatePartnerProfile = useCallback(async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
         if (!user || !isPartner) return;

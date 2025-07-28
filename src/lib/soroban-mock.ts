@@ -28,6 +28,7 @@ export interface Loan {
 const mockDb = {
   scores: new Map<Address, Score>(),
   loans: new Map<number, Loan>(),
+  nextLoanId: 1,
 };
 
 // --- Mock Functions --- //
@@ -39,16 +40,7 @@ export const initMockSoroban = () => {
   if (mockDb.scores.size === 0) { // Prevent re-initialization on hot-reloads
     mockDb.scores.set('GABC...', { value: 720, riskBand: 'B', lastUpdated: new Date().toISOString() });
     mockDb.scores.set('GUSERWALLETMOCK', { value: 720, riskBand: 'B', lastUpdated: new Date().toISOString() });
-    mockDb.loans.set(1, {
-      id: 1,
-      lender: 'GDEF...',
-      borrower: 'GABC...',
-      amount: 500,
-      repaid: 0,
-      interestRate: 10,
-      term: 12,
-      status: 'active'
-    });
+    // No initial loans, they will be created dynamically
   }
 };
 
@@ -80,7 +72,7 @@ export const createLoan = async (
 ): Promise<TxHash> => {
   await simulateNetworkDelay();
   
-  const loanId = mockDb.loans.size + 1;
+  const loanId = mockDb.nextLoanId++;
   mockDb.loans.set(loanId, {
     id: loanId,
     lender,
@@ -103,11 +95,14 @@ export const createLoan = async (
 export const repayLoan = async (loanId: number, amount: number): Promise<TxHash> => {
   await simulateNetworkDelay();
   
+  if (isNaN(loanId)) {
+      throw new Error('Invalid Loan ID provided for repayment.');
+  }
   const loan = mockDb.loans.get(loanId);
   if (!loan) throw new Error('Loan not found');
 
   const monthlyRate = loan.interestRate / 100 / 12;
-  const totalRepayment = loan.amount * (1 + monthlyRate * loan.term);
+  const totalRepayment = loan.term > 0 ? (loan.amount * monthlyRate * Math.pow(1 + monthlyRate, loan.term)) / (Math.pow(1 + monthlyRate, loan.term) - 1) * loan.term : loan.amount;
   
   loan.repaid += amount;
   if (loan.repaid >= totalRepayment) {
