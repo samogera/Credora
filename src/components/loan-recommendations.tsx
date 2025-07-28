@@ -148,5 +148,3 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
         </Card>
     );
 }
-
-    
