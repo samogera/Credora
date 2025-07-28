@@ -35,10 +35,17 @@ export default function PartnerAdminPage() {
 
     const handleDecision = (appToUpdate: Application, decision: 'Approved' | 'Denied') => {
         updateApplicationStatus(appToUpdate.id, decision);
-        toast({
-            title: `Application ${decision}`,
-            description: `The application from ${appToUpdate.user?.displayName || 'Unknown User'} has been ${decision.toLowerCase()}.`
-        });
+        if (decision === 'Approved') {
+            toast({
+                title: `Application Approved`,
+                description: `The user has been notified. Funds will be disbursed once they sign the contract.`
+            });
+        } else {
+             toast({
+                title: `Application Denied`,
+                description: `The application from ${appToUpdate.user?.displayName || 'Unknown User'} has been denied.`
+            });
+        }
     };
     
     const handleViewProfile = (app: Application) => {
@@ -161,14 +168,14 @@ export default function PartnerAdminPage() {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                              <Avatar>
-                                <AvatarImage src={selectedApplication?.user?.avatarUrl || ''} alt={selectedApplication?.user?.displayName} />
+                                <AvatarImage src={selectedApplication?.user?.avatarUrl || ''} alt={selectedApplication?.user?.displayName || 'Unknown User'} />
                                 <AvatarFallback>
                                     <User />
                                 </AvatarFallback>
                             </Avatar>
                             Borrower Profile
                         </DialogTitle>
-                        <DialogDescription>{selectedApplication?.user?.displayName} - {selectedApplication?.loan.name}</DialogDescription>
+                        <DialogDescription>{selectedApplication?.user?.displayName || 'Unknown User'} - {selectedApplication?.loan.name}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-6 py-4">
                         <div className="grid grid-cols-2 gap-4 text-center">
