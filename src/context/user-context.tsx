@@ -162,6 +162,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             clearState();
             if (currentUser) {
+                setUser(currentUser);
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
                 const partnerDocSnap = await getDoc(partnerDocRef);
 
@@ -178,7 +179,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                            setAvatarUrlState(data.avatarUrl || currentUser.photoURL || null);
                            const userScore = data.score === undefined ? null : data.score;
                            setScoreState(userScore);
-                           if (userScore === null && window.location.pathname !== '/dashboard/data-sources') {
+                           if (userScore === null && !window.location.pathname.includes('/dashboard/data-sources')) {
                                router.push('/dashboard/data-sources');
                            }
                         } else {
@@ -196,7 +197,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                         console.error("Error getting user document", e);
                     }
                 }
-                setUser(currentUser);
+            } else {
+                setUser(null);
             }
             setAuthInitialized(true);
         });
@@ -206,7 +208,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     
     // Listener for ALL partners (for user view)
     useEffect(() => {
-        if (isPartner) return;
+        if (isPartner || !user) return; // Only run for regular users who are logged in
     
         const unsubPartners = onSnapshot(collection(db, "partners"), async (snapshot) => {
             const partnerListPromises = snapshot.docs.map(async (pDoc) => {
@@ -225,7 +227,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }, (error) => console.error("Partner listener error: ", error));
     
         return () => unsubPartners();
-    }, [isPartner]);
+    }, [user, isPartner]);
 
     // Listener for user-specific data (their applications and loans)
     useEffect(() => {
@@ -394,7 +396,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 userId: appToUpdate.userId,
                 type: 'approval',
                 title: `Loan Approved`,
-                message: `Your application for the ${appToUpdate.loan.name} is approved! Please sign the contract on your dashboard to receive your funds.`,
+                message: `Your application for the ${appToUpdate.loan.name} is approved! Sign the contract to receive funds.`,
                 href: '/dashboard'
             });
         } else { // Denied
@@ -578,7 +580,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         loanActivity,
     }), [
         user, partner, isPartner, loading, logout, emailLogin, googleLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
-        score, setScore, connectWalletAndSetScore, avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus, userSignLoan,
+        score, connectWalletAndSetScore, avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus, userSignLoan,
         partners, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct,
         notifications, markNotificationsAsRead, loanActivity
     ]);
