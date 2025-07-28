@@ -14,17 +14,10 @@ import { UserContext } from "@/context/user-context";
 import { toast } from "@/hooks/use-toast";
 
 export default function LoginPartnerPage() {
-    const { partnerLogin, isPartner, loading, user } = useContext(UserContext);
+    const { partnerLogin, loading } = useContext(UserContext);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const router = useRouter();
-
-    useEffect(() => {
-        if (!loading && user && isPartner) {
-            router.push('/dashboard/partner-admin');
-        }
-    }, [isPartner, loading, router, user]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -35,7 +28,7 @@ export default function LoginPartnerPage() {
         setIsSubmitting(true);
         try {
             await partnerLogin(email, password);
-            // The useEffect will handle the redirect
+            // The context will handle the redirect
         } catch (error: any) {
             toast({
                 variant: 'destructive',
