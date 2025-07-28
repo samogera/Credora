@@ -5,7 +5,7 @@ import { createContext, useState, ReactNode, useEffect, useCallback, useMemo } f
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, auth } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
-import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, deleteUser, signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
+import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, deleteUser } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
@@ -339,7 +339,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Avatar updated!" });
     }, [user, isPartner]);
 
-    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score' | 'partnerId'>) => {
+    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score' | 'partnerId' >) => {
         if (!user || score === null) throw new Error("User not logged in or score not calculated.");
         
         const targetPartner = partners.find(p => p.name === app.loan.partnerName);
@@ -420,7 +420,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         if (status === 'Approved') {
             const loanActivityData: Omit<LoanActivityItem, 'id' | 'createdAt'> = {
-                user: { displayName: appToUpdate.user.displayName || 'Unknown User' },
+                user: { displayName: appToUpdate.user?.displayName || 'Unknown User' },
                 userId: appToUpdate.userId,
                 partnerId: appToUpdate.loan.partnerId,
                 partnerName: appToUpdate.loan.partnerName,
@@ -553,3 +553,5 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
+
+    
