@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useContext } from 'react';
@@ -19,9 +18,11 @@ import {
 } from "@/components/ui/dialog";
 import { CreditCard, Landmark, Wallet, Smartphone } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+// TODO: REPLACE WITH REAL SOROBAN CALL
+import { repayLoan, getLoan } from '@/lib/soroban-mock';
 
 export default function MyLoansPage() {
-    const { loanActivity, user } = useContext(UserContext);
+    const { loanActivity, user, refreshLoanActivity } = useContext(UserContext);
     const [selectedLoan, setSelectedLoan] = useState<LoanActivityItem | null>(null);
     const [isRepaying, setIsRepaying] = useState(false);
 
@@ -31,7 +32,7 @@ export default function MyLoansPage() {
         setSelectedLoan(loan);
     }
 
-    const handlePayment = () => {
+    const handlePayment = async () => {
         if (!selectedLoan) return;
         setIsRepaying(true);
         toast({
@@ -39,20 +40,45 @@ export default function MyLoansPage() {
             description: "Your repayment transaction is being sent to the LoanAgreement contract.",
         });
 
-        setTimeout(() => {
+        try {
+            // TODO: REPLACE WITH REAL SOROBAN CALL
+            const txHash = await repayLoan(parseInt(selectedLoan.sorobanLoanId!, 10), selectedLoan.amount - (selectedLoan.repaid || 0));
+
+            // Refresh the loan state from the mock DB to show progress
+            await refreshLoanActivity();
+
+            // Check if the loan is fully repaid
+            const updatedLoan = await getLoan(parseInt(selectedLoan.sorobanLoanId!, 10));
+
             setIsRepaying(false);
             setSelectedLoan(null);
+
             toast({
                 title: "Payment Successful!",
-                description: `Your repayment for the loan from ${selectedLoan.partnerName} has been confirmed on-chain.`,
+                description: `Repayment for ${selectedLoan.partnerName} confirmed. Mock TX: ${txHash.substring(0, 20)}...`,
             });
-            // Here you would add the logic to update the loan's repaid amount in the database
-        }, 2000);
+            
+            if (updatedLoan?.status === 'repaid') {
+                 toast({
+                    title: "Loan Paid Off!",
+                    description: `Congratulations! Your loan from ${selectedLoan.partnerName} is fully repaid.`,
+                });
+            }
+
+        } catch(e: any) {
+            console.error("Mock Soroban error:", e);
+            toast({
+                title: "Repayment Failed",
+                description: e.message || "Could not process repayment via mock Soroban.",
+                variant: 'destructive',
+            })
+            setIsRepaying(false);
+        }
     }
 
     const getStatusVariant = (status: string) => {
         if (status === 'Active') return 'default';
-        if (status === 'Paid Off') return 'secondary';
+        if (status === 'Paid Off' || status === 'repaid') return 'secondary';
         return 'destructive';
     }
 
@@ -96,10 +122,10 @@ export default function MyLoansPage() {
                                                 <p className="text-xs text-muted-foreground">${repaid.toLocaleString()} / ${loan.amount.toLocaleString()}</p>
                                             </TableCell>
                                             <TableCell className="text-center">
-                                                <Badge variant={getStatusVariant(loan.status)}>{loan.status}</Badge>
+                                                <Badge variant={getStatusVariant(loan.status)}>{loan.status === 'repaid' ? 'Paid Off' : loan.status}</Badge>
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <Button size="sm" onClick={() => handleRepayClick(loan)} disabled={loan.status !== 'Active'}>
+                                                <Button size="sm" onClick={() => handleRepayClick(loan)} disabled={loan.status === 'Paid Off' || loan.status === 'repaid'}>
                                                     Make Payment
                                                 </Button>
                                             </TableCell>

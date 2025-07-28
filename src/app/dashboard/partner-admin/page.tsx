@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useContext } from 'react';
@@ -27,6 +26,8 @@ import { UserContext, Application } from '@/context/user-context';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+// TODO: REPLACE WITH REAL SOROBAN CALL
+import { getScore } from '@/lib/soroban-mock';
 
 export default function PartnerAdminPage() {
     const { applications, updateApplicationStatus, dataLoading } = useContext(UserContext);
@@ -34,7 +35,7 @@ export default function PartnerAdminPage() {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
 
     const handleDecision = (appToUpdate: Application, decision: 'Approved' | 'Denied') => {
-        updateApplicationStatus(appToUpdate.id, decision);
+        updateApplicationStatus(appToUpdate.id, decision, appToUpdate.user?.walletAddress, appToUpdate.amount);
         if (decision === 'Approved') {
             toast({
                 title: `Application Approved`,
@@ -59,26 +60,23 @@ export default function PartnerAdminPage() {
     const handleVerifyOnSoroban = async (walletAddress: string) => {
         toast({
             title: "Verifying Score...",
-            description: `Fetching latest score for wallet ${walletAddress.substring(0, 8)}... from the Soroban contract.`
+            description: `Fetching latest score for wallet ${walletAddress.substring(0, 8)}... from the mock Soroban contract.`
         });
-        // Mock function (replace later with real Soroban SDK)
-        const getScore = async (wallet: string) => {
-            console.log(`Getting score for ${wallet}`);
-            await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
-            return { score: 720, risk: "B", onChain: true, tx: `0x${[...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('')}` }; // Simulate on-chain fetch
-        };
-
+        
+        // TODO: REPLACE WITH REAL SOROBAN CALL
         try {
             const sorobanResult = await getScore(walletAddress);
              toast({
                 title: "Verification Complete!",
-                description: `On-chain score: ${sorobanResult.score}. Tx: ${sorobanResult.tx.substring(0,12)}...`
+                description: `Mock on-chain score: ${sorobanResult.value}, Risk: ${sorobanResult.riskBand}.`
             });
              if(selectedApplication){
-                setSelectedApplication({...selectedApplication, score: sorobanResult.score });
+                // Update score in the dialog for immediate feedback
+                setSelectedApplication({...selectedApplication, score: sorobanResult.value });
             }
-        } catch(e) {
-            toast({ variant: 'destructive', title: "Verification Failed", description: "Could not connect to Soroban RPC." });
+        } catch(e: any) {
+            console.error("Mock Soroban error:", e);
+            toast({ variant: 'destructive', title: "Verification Failed", description: e.message || "Could not connect to Soroban RPC." });
         }
     }
 

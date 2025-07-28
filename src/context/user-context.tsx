@@ -8,6 +8,8 @@ import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, 
 import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, deleteUser } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+// TODO: REPLACE WITH REAL SOROBAN CALL
+import { createLoan, getLoan } from '@/lib/soroban-mock';
 
 // Types
 export type LoanProduct = {
@@ -29,14 +31,15 @@ export type Partner = {
 };
 
 export type LoanActivityItem = {
-    id: string;
+    id: string; // Firestore doc ID
+    sorobanLoanId?: string; // ID from the mock/real Soroban contract
     user: {
         displayName: string;
     };
     amount: number;
     repaid?: number;
     interestAccrued?: number;
-    status: 'Active' | 'Paid Off' | 'Delinquent';
+    status: 'Active' | 'Paid Off' | 'Delinquent' | 'active' | 'repaid' | 'defaulted';
     createdAt: Date;
     partnerId: string;
     partnerName: string;
@@ -98,7 +101,7 @@ interface UserContextType {
     walletAddress: string | null;
     applications: Application[];
     addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score' | 'partnerId' >) => Promise<void>;
-    updateApplicationStatus: (appId: string, status: 'Approved' | 'Denied') => Promise<void>;
+    updateApplicationStatus: (appId: string, status: 'Approved' | 'Denied', borrowerAddress?: string, amount?: number) => Promise<void>;
     userSignLoan: (appId: string) => Promise<void>;
     partners: Partner[];
     updatePartnerProfile: (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => void;
@@ -108,6 +111,7 @@ interface UserContextType {
     notifications: Notification[];
     markNotificationsAsRead: (role: 'user' | 'partner') => void;
     loanActivity: LoanActivityItem[];
+    refreshLoanActivity: () => Promise<void>;
 }
 
 export const UserContext = createContext<UserContextType>({} as UserContextType);
@@ -195,6 +199,26 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         });
         return () => unsubscribe();
     }, [clearState]);
+
+    const refreshLoanActivity = useCallback(async () => {
+        if (!user || loanActivity.length === 0) return;
+
+        const updatedLoanActivity = await Promise.all(loanActivity.map(async (loan) => {
+            if (!loan.sorobanLoanId) return loan;
+            // TODO: REPLACE WITH REAL SOROBAN CALL
+            const onChainLoan = await getLoan(parseInt(loan.sorobanLoanId, 10));
+            if (onChainLoan) {
+                return {
+                    ...loan,
+                    repaid: onChainLoan.repaid,
+                    status: onChainLoan.status,
+                };
+            }
+            return loan;
+        }));
+        setLoanActivity(updatedLoanActivity);
+
+    }, [user, loanActivity]);
     
      // Data fetching useEffect based on user role
     useEffect(() => {
@@ -321,9 +345,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const connectWalletAndSetScore = useCallback(async () => {
         if (!user || isPartner) return;
         const newScore = Math.floor(Math.random() * (850 - 550 + 1)) + 550;
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        const randomKey = Array.from({ length: 55 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
-        const newWalletAddress = 'G' + randomKey;
+        // Using a mock wallet address that exists in the soroban-mock DB
+        const newWalletAddress = 'GUSERWALLETMOCK'; 
         await setScore(newScore, newWalletAddress);
         toast({
           title: "Soroban Auth",
@@ -386,7 +409,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     }, [user, score, partners, avatarUrl, walletAddress]);
     
-     const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
+     const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied', borrowerAddress?: string, amount?: number) => {
         if(!auth.currentUser || !isPartner) {
             toast({ variant: 'destructive', title: "Permission Denied" });
             return;
@@ -421,19 +444,40 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             timestamp: serverTimestamp()
         });
 
-        if (status === 'Approved') {
-            const loanActivityData: Omit<LoanActivityItem, 'id' | 'createdAt'> = {
-                user: { displayName: appToUpdate.user?.displayName || 'Unknown User' },
-                userId: appToUpdate.userId,
-                partnerId: appToUpdate.loan.partnerId,
-                partnerName: appToUpdate.loan.partnerName,
-                amount: appToUpdate.amount,
-                repaid: 0,
-                interestAccrued: 0,
-                status: 'Active',
-            };
-            const loanActivityRef = doc(collection(db, 'loanActivity'));
-            batch.set(loanActivityRef, {...loanActivityData, createdAt: serverTimestamp()});
+        if (status === 'Approved' && borrowerAddress && amount) {
+             try {
+                // TODO: REPLACE WITH REAL SOROBAN CALL
+                const txHash = await createLoan(auth.currentUser.uid, borrowerAddress, amount);
+                const loanId = txHash.split('-').pop(); // Extract ID from mock hash
+
+                const loanActivityData: Omit<LoanActivityItem, 'id' | 'createdAt'> = {
+                    sorobanLoanId: loanId,
+                    user: { displayName: appToUpdate.user?.displayName || 'Unknown User' },
+                    userId: appToUpdate.userId,
+                    partnerId: appToUpdate.loan.partnerId,
+                    partnerName: appToUpdate.loan.partnerName,
+                    amount: appToUpdate.amount,
+                    repaid: 0,
+                    interestAccrued: 0,
+                    status: 'Active',
+                };
+                const loanActivityRef = doc(collection(db, 'loanActivity'));
+                batch.set(loanActivityRef, {...loanActivityData, createdAt: serverTimestamp()});
+                 toast({
+                    title: "Mock Loan Created!",
+                    description: `Loan created on mock Soroban. TX: ${txHash}`
+                });
+
+            } catch (e: any) {
+                console.error("Mock Soroban error:", e);
+                toast({
+                    title: "Soroban Mock Error",
+                    description: "Could not create loan on the mock Soroban network.",
+                    variant: 'destructive',
+                });
+                // Do not commit the batch if soroban call fails
+                return;
+            }
         }
         
         await batch.commit();
@@ -543,11 +587,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         notifications,
         markNotificationsAsRead,
         loanActivity,
+        refreshLoanActivity,
     }), [
         user, partner, isPartner, loading, dataLoading, logout, emailLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
         score, connectWalletAndSetScore, avatarUrl, setAvatarUrl, walletAddress, applications, addApplication, updateApplicationStatus, userSignLoan,
         partners, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct,
-        notifications, markNotificationsAsRead, loanActivity,
+        notifications, markNotificationsAsRead, loanActivity, refreshLoanActivity,
     ]);
 
     return (
