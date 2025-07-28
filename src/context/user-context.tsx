@@ -148,7 +148,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         clearState();
         router.push('/login');
     }, [router, clearState]);
-
+    
     const deleteAccount = useCallback(async () => {
         const currentUser = auth.currentUser;
         if (!currentUser) {
@@ -179,14 +179,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 if (user?.uid !== currentUser.uid) { // only reset if user is different
                     clearState();
                     setUser(currentUser);
-                } else {
-                    setAuthInitialized(true); // User is the same, just ensure auth is initialized
                 }
             } else {
                 clearState();
-                setAuthInitialized(true);
-                setDataLoading(false);
             }
+             setAuthInitialized(true);
         });
         return () => unsubscribe();
     }, [user, clearState]);
@@ -253,7 +250,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             setNotifications(allNotifs.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime()));
         }, (error) => console.error("Notifications listener error: ", error)));
 
-        if (isPartner) {
+        if (isPartner && partner) {
              // Partner-specific listeners
             unsubscribers.push(onSnapshot(collection(db, "partners", user.uid, "products"), (snapshot) => {
                 setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
@@ -268,11 +265,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             unsubscribers.push(onSnapshot(qApps, async (snapshot) => {
                 const appPromises = snapshot.docs.map(async (d) => {
                     const appData = d.data();
-                    // Avoid fetching user data if it's already there
-                    const existingApp = applications.find(a => a.id === d.id);
-                    if (existingApp?.user) {
-                         return { id: d.id, ...appData, createdAt: appData.createdAt?.toDate(), user: existingApp.user } as Application;
-                    }
                     const userSnap = await getDoc(doc(db, 'users', appData.userId));
                     const userData = userSnap.exists() ? {
                         displayName: userSnap.data()?.displayName || 'Unknown User',
@@ -281,14 +273,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     return { id: d.id, ...appData, createdAt: appData.createdAt?.toDate(), user: userData } as Application;
                 });
                 const appsData = await Promise.all(appPromises);
-                setApplications(appsData);
+                setApplications(appsData.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
             }, (error) => console.error("Partner Applications listener error: ", error)));
 
         } else {
             // User-specific listeners
             const qApps = query(collection(db, "applications"), where("userId", "==", user.uid));
             unsubscribers.push(onSnapshot(qApps, (snapshot) => {
-                setApplications(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application)));
+                const userApps = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application));
+                setApplications(userApps.sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime()));
             }, (error) => console.error("User Applications listener error: ", error)));
             
             const qUserLoans = query(collection(db, "loanActivity"), where("userId", "==", user.uid));
@@ -311,7 +304,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return () => { 
             unsubscribers.forEach(unsub => unsub());
         }
-    }, [user, isPartner, dataLoading, applications]);
+    }, [user, isPartner, dataLoading, partner]);
     
     const setScore = async (score: number | null) => {
         if (!user || isPartner) return;
@@ -551,5 +544,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
+
+    
 
     
