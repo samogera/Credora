@@ -5,7 +5,6 @@ import { createContext, useState, ReactNode, useEffect, useCallback, useMemo } f
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, auth } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged, User, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 
@@ -158,7 +157,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     
     // Listener for all data - requires authenticated user
     useEffect(() => {
-        if (loading || !user) return;
+        if (!user) return;
 
         const unsubPartners = onSnapshot(collection(db, "partners"), async (snapshot) => {
             const partnerList: Partner[] = [];
@@ -175,51 +174,46 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             }
             setPartners(partnerList);
         }, (error) => console.error("Partner listener error: ", error));
+        
+        const qApps = isPartner && partner ? query(collection(db, "applications"), where("loan.partnerId", "==", partner.id)) : query(collection(db, "applications"), where("userId", "==", user.uid));
+        
+        const unsubApps = onSnapshot(qApps, async (snapshot) => {
+            const appPromises = snapshot.docs.map(async (d) => {
+                const appData = d.data();
+                let userData = appData.user;
+                // If we are a partner, we need to fetch user details, otherwise we already have them
+                if (isPartner) {
+                    const userSnap = await getDoc(doc(db, 'users', appData.userId));
+                    if (userSnap.exists()) {
+                         userData = {
+                            displayName: userSnap.data()?.displayName || 'Unknown User',
+                            avatarUrl: userSnap.data()?.avatarUrl || null,
+                        }
+                    }
+                }
+                return {
+                    id: d.id,
+                    ...appData,
+                    createdAt: appData.createdAt?.toDate(),
+                    user: userData
+                } as Application;
+            });
+            const appsData = await Promise.all(appPromises);
+            setApplications(appsData);
+        }, (error) => console.error("Applications listener error: ", error));
 
-        let unsubUserApps: () => void = () => {};
         let unsubUser: () => void = () => {};
         let unsubPartnerProducts: () => void = () => {};
-        let unsubPartnerApps: () => void = () => {};
         let unsubLoanActivity: () => void = () => {};
-
 
         if (isPartner && partner) {
              unsubPartnerProducts = onSnapshot(collection(db, "partners", partner.id, "products"), (snapshot) => {
                  setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
             });
-            
-             const partnerAppsQuery = query(collection(db, "applications"), where("loan.partnerId", "==", partner.id));
-             unsubPartnerApps = onSnapshot(partnerAppsQuery, async (snapshot) => {
-                const appPromises = snapshot.docs.map(async (d) => {
-                    const appData = d.data() as Omit<Application, 'id' | 'createdAt'>;
-                    const userSnap = await getDoc(doc(db, 'users', appData.userId));
-                    const userData = userSnap.data();
-                    return {
-                        id: d.id,
-                        ...appData,
-                        createdAt: appData.createdAt?.toDate(),
-                        user: {
-                            displayName: userData?.displayName || 'Unknown User',
-                            avatarUrl: userData?.avatarUrl || null,
-                        }
-                    } as Application;
-                });
-                const appsData = await Promise.all(appPromises);
-                setApplications(appsData);
-             }, (error) => console.error("Partner apps listener error: ", error));
-             
              unsubLoanActivity = onSnapshot(collection(db, "loanActivity"), (snapshot) => {
                 setLoanActivity(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt.toDate()}) as LoanActivityItem));
              }, (error) => console.error("Loan activity listener error: ", error));
-
-
         } else if(user && !isPartner) {
-            const userAppsQuery = query(collection(db, "applications"), where("userId", "==", user.uid));
-             unsubUserApps = onSnapshot(userAppsQuery, (snapshot) => {
-                const appsData = snapshot.docs.map(d => ({ id: d.id, ...d.data(), createdAt: d.data().createdAt.toDate() } as Application));
-                setApplications(appsData);
-            }, (error) => console.error("User apps listener error: ", error));
-            
              unsubUser = onSnapshot(doc(db, "users", user.uid), (doc) => {
                 if (doc.exists()) {
                     setAvatarUrlState(doc.data().avatarUrl || null);
@@ -229,13 +223,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         return () => { 
             unsubPartners();
-            unsubUserApps();
+            unsubApps();
             unsubUser();
             unsubPartnerProducts();
-            unsubPartnerApps();
             unsubLoanActivity();
         }
-    }, [user, isPartner, partner, loading]);
+    }, [user, isPartner, partner]);
     
     // Notifications listener
     useEffect(() => {
@@ -257,10 +250,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         if (!user || user.isAnonymous) return;
         const userDocRef = doc(db, "users", user.uid);
         try {
-            let downloadUrl = url;
-            // Removed image upload logic for simplicity in this pass
-            await updateDoc(userDocRef, { avatarUrl: downloadUrl });
-            setAvatarUrlState(downloadUrl);
+            await updateDoc(userDocRef, { avatarUrl: url });
+            setAvatarUrlState(url);
         } catch (error) {
             console.error("Error updating avatar:", error);
             toast({ variant: 'destructive', title: 'Upload Failed', description: 'Could not update your avatar.' });
@@ -321,11 +312,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const updatePartnerProfile = useCallback(async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
         if (!partner) return;
         const partnerRef = doc(db, "partners", partner.id);
-
         try {
-            let profileToUpdate = {...profile};
-            // Removed image upload logic for simplicity
-            await updateDoc(partnerRef, profileToUpdate);
+            await updateDoc(partnerRef, profile);
             toast({ title: "Profile Saved!", description: "Your public profile has been updated."})
         } catch(error) {
             console.error("Error updating partner profile:", error);
@@ -374,7 +362,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 createdAt: serverTimestamp()
             };
             await setDoc(doc(db, "partners", userCredential.user.uid), newPartner);
-            // onAuthStateChanged will handle setting the user/partner state
         } catch (error: any) {
             console.error("Error during partner signup:", error);
             if (error.code === 'auth/email-already-in-use') {
@@ -389,7 +376,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const partnerLogin = useCallback(async (email: string, pass: string) => {
        try {
             await signInWithEmailAndPassword(auth, email, pass);
-            // onAuthStateChanged will handle the rest
         } catch (error: any) {
             console.error("Error during partner login:", error);
             throw new Error("Login failed. Please check your email and password.");
@@ -398,7 +384,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = useCallback(async () => {
         await signOut(auth);
-        // onAuthStateChanged will handle signing in anonymously
     }, []);
 
     const contextValue = useMemo(() => ({
@@ -437,5 +422,3 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
-
-    
