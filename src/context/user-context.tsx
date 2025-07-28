@@ -85,7 +85,7 @@ interface UserContextType {
     setAvatarUrl: (url: string) => void;
     applications: Application[];
     addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'userAvatar'>) => Promise<void>;
-    updateApplicationStatus: (id: string, status: 'Approved' | 'Denied') => void;
+    updateApplicationStatus: (appId: string, status: 'Approved' | 'Denied') => void;
     partners: Partner[];
     updatePartnerProfile: (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => void;
     partnerProducts: LoanProduct[];
@@ -179,7 +179,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
        }, (error) => console.error("Partner products listener error: ", error));
        
-       const unsubLoanActivity = onSnapshot(query(collection(db, "loanActivity"), where("partnerId", "==", partner.id)), (snapshot) => {
+       const qLoanActivity = query(collection(db, "loanActivity"), where("partnerId", "==", partner.id));
+       const unsubLoanActivity = onSnapshot(qLoanActivity, (snapshot) => {
            setLoanActivity(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt.toDate()}) as LoanActivityItem));
         }, (error) => console.error("Loan activity listener error: ", error));
 
@@ -272,10 +273,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         let userDocSnap = await getDoc(userDocRef);
         if (!userDocSnap.exists()) {
             await setDoc(userDocRef, { displayName: `User-${user.uid.substring(0,5)}`, avatarUrl: null, createdAt: serverTimestamp()});
-            userDocSnap = await getDoc(userDocRef);
         }
-
-        const userData = userDocSnap.data();
         
         const targetPartner = partners.find(p => p.name === app.loan.partnerName);
         if (!targetPartner) throw new Error("Lending partner not found.");

@@ -60,8 +60,10 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
     }, [score, partners, userContextLoading]);
 
     useEffect(() => {
-        handleGetRecommendations();
-    }, [handleGetRecommendations, score, partners]);
+        if(!userContextLoading) {
+            handleGetRecommendations();
+        }
+    }, [handleGetRecommendations, score, partners, userContextLoading]);
 
     const recommendedLoans = result?.recommendations?.filter(r => r.isRecommended) || [];
     const otherLoans = result?.recommendations?.filter(r => !r.isRecommended) || [];
