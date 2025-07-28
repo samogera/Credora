@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, Info, FileSignature, Bot, MoreHorizontal, User, XCircle } from 'lucide-react';
+import { CheckCircle, Info, FileSignature, Bot, MoreHorizontal, User, XCircle, Wallet } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { PartnerPortfolio } from '@/components/partner-portfolio';
 import { LoanActivity } from '@/components/loan-activity';
@@ -25,6 +25,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { UserContext, Application } from '@/context/user-context';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function PartnerAdminPage() {
     const { applications, updateApplicationStatus, dataLoading } = useContext(UserContext);
@@ -155,7 +157,7 @@ export default function PartnerAdminPage() {
             </div>
         
             <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
-                 <DialogContent className="sm:max-w-lg">
+                 <DialogContent className="sm:max-w-2xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                              <Avatar>
@@ -170,16 +172,20 @@ export default function PartnerAdminPage() {
                     </DialogHeader>
                     <div className="space-y-6 py-4">
                         <div className="grid grid-cols-2 gap-4 text-center">
-                            <div>
-                                <p className="text-sm text-muted-foreground">Credora Score</p>
-                                <p className={`text-5xl font-bold ${getScoreColor(selectedApplication?.score || 0)}`}>{selectedApplication?.score}</p>
-                            </div>
-                            <div>
-                                <p className="text-sm text-muted-foreground">Risk Band</p>
-                                <Badge className="text-lg mt-2" variant={selectedApplication && selectedApplication.score > 700 ? 'default' : selectedApplication && selectedApplication.score > 600 ? 'secondary' : 'destructive'}>
-                                    {selectedApplication && selectedApplication.score > 700 ? 'Low' : selectedApplication && selectedApplication.score > 600 ? 'Medium' : 'High'}
-                                </Badge>
-                            </div>
+                            <Card className="pt-6">
+                                <CardContent>
+                                    <p className="text-sm text-muted-foreground">Credora Score</p>
+                                    <p className={`text-5xl font-bold ${getScoreColor(selectedApplication?.score || 0)}`}>{selectedApplication?.score}</p>
+                                </CardContent>
+                            </Card>
+                             <Card className="pt-6">
+                                <CardContent>
+                                    <p className="text-sm text-muted-foreground">Risk Band</p>
+                                    <Badge className="text-lg mt-4" variant={selectedApplication && selectedApplication.score > 700 ? 'default' : selectedApplication && selectedApplication.score > 600 ? 'secondary' : 'destructive'}>
+                                        {selectedApplication && selectedApplication.score > 700 ? 'Low' : selectedApplication && selectedApplication.score > 600 ? 'Medium' : 'High'}
+                                    </Badge>
+                                </CardContent>
+                            </Card>
                         </div>
                         
                          <Card>
@@ -206,16 +212,33 @@ export default function PartnerAdminPage() {
                             </CardContent>
                         </Card>
 
-                        <Card>
-                             <CardHeader className="pb-2">
-                                <CardTitle className="text-base">Profile Data Sources</CardTitle>
-                             </CardHeader>
-                            <CardContent className="space-y-3 text-sm">
-                                <div className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-green-500" /> <span>On-chain Stellar Activity</span></div>
-                                <div className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-green-500" /> <span>Verified Utility Bill Payments</span></div>
-                                <div className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-green-500" /> <span>Linked Off-chain Identifiers</span></div>
-                            </CardContent>
-                        </Card>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Card>
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-base">Profile Data Sources</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3 text-sm">
+                                    <div className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-green-500" /> <span>On-chain Stellar Activity</span></div>
+                                    <div className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-green-500" /> <span>Verified Utility Bill Payments</span></div>
+                                    <div className="flex items-center gap-3"><CheckCircle className="h-5 w-5 text-green-500" /> <span>Linked Off-chain Identifiers</span></div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-base">Application Details</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3 text-sm">
+                                    <div className="space-y-1">
+                                        <Label>Loan Amount</Label>
+                                        <Input disabled value={`$${selectedApplication?.amount.toLocaleString()}`} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="flex items-center gap-2"><Wallet className="h-4 w-4" /> Wallet Address</Label>
+                                        <Input disabled value={selectedApplication?.user?.walletAddress || "Not Provided"} />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
                     </div>
                     <DialogFooter>
                          <Button variant="secondary" onClick={() => setIsProfileOpen(false)}>Close</Button>
@@ -232,5 +255,3 @@ export default function PartnerAdminPage() {
         </>
     );
 }
-
-    
