@@ -15,7 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 
 export default function LoginPage() {
-  const { user, loading, emailLogin, googleLogin, isPartner, score } = useContext(UserContext);
+  const { user, loading, emailLogin, googleLogin } = useContext(UserContext);
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,18 +23,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-        if (isPartner) {
-            router.push('/dashboard/partner-admin');
-        } else {
-            // If user is not a partner, check if they have a score
-            if (score === null) {
-                router.push('/dashboard/data-sources');
-            } else {
-                router.push('/dashboard');
-            }
-        }
+      // The redirect logic is now handled inside the UserContext
+      // to ensure the correct page is loaded based on role and score.
+      // This simply waits for the user object to be populated.
     }
-  }, [user, loading, router, isPartner, score]);
+  }, [user, loading, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +38,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
         await emailLogin(email, password);
-        // The useEffect will handle the redirect
+        // The context will handle the redirect
     } catch (error: any) {
         toast({
             variant: 'destructive',
