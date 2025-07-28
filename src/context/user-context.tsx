@@ -95,7 +95,7 @@ interface UserContextType {
     avatarUrl: string | null;
     setAvatarUrl: (url: string) => void;
     applications: Application[];
-    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score'>) => Promise<void>;
+    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar' | 'createdAt' | 'score'>) => Promise<void>;
     updateApplicationStatus: (appId: string, status: 'Approved' | 'Denied') => Promise<void>;
     userSignLoan: (appId: string) => Promise<void>;
     partners: Partner[];
@@ -128,12 +128,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const router = useRouter();
 
     const clearState = useCallback(() => {
-        // This function should ONLY clear data state, not auth state
         setPartner(null);
         setIsPartner(false);
         setAvatarUrlState(null);
         setApplications([]);
-        // Do not clear partners list, it's public data
+        // Do not clear all partners, this is public data that can be loaded even for non-logged-in users.
+        // It will be re-fetched for users.
         setNotifications([]);
         setLoanActivity([]);
         setPartnerProducts([]);
@@ -142,10 +142,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const logout = useCallback(async () => {
-        await signOut(auth);
-        clearState();
-        setUser(null);
-        router.push('/login');
+        try {
+            await signOut(auth);
+            clearState();
+            setUser(null);
+            router.push('/login');
+        } catch (error) {
+            console.error("Logout failed:", error);
+        }
     }, [router, clearState]);
     
     const deleteAccount = useCallback(async () => {
@@ -159,6 +163,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             await deleteDoc(docRef);
             await deleteUser(currentUser);
             toast({ title: "Account Deleted", description: "Your account has been permanently deleted." });
+            // Logout is handled by onAuthStateChanged
         } catch (error: any) {
             console.error("Error deleting account: ", error);
             if (error.code === 'auth/requires-recent-login') {
@@ -170,14 +175,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [isPartner, logout]);
     
-    // Auth state listener
+    // Auth state listener - determines user and role
     useEffect(() => {
-        setLoading(true);
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            setLoading(true);
             if (currentUser) {
                 setUser(currentUser);
-                
-                // Determine if user is a partner
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
                 const partnerDocSnap = await getDoc(partnerDocRef);
                 
@@ -187,7 +190,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     router.push('/dashboard/partner-admin');
                 } else {
                     setIsPartner(false);
-                    setPartner(null);
                     const userDocRef = doc(db, "users", currentUser.uid);
                     const userDocSnap = await getDoc(userDocRef);
                     if (userDocSnap.exists()) {
@@ -201,6 +203,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                             router.push('/dashboard');
                         }
                     } else {
+                         // New user registration
                          await setDoc(userDocRef, { 
                            displayName: currentUser.displayName || `User-${currentUser.uid.substring(0,5)}`, 
                            email: currentUser.email,
@@ -218,18 +221,18 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 setUser(null);
             }
             setLoading(false);
-            setDataLoading(false);
+            setDataLoading(false); // Auth check is complete
         });
         return () => unsubscribe();
     }, [router, clearState]);
 
-    // Data listeners
+    // Data listeners - depends on user and role
     useEffect(() => {
         if (loading || dataLoading || !user) return;
 
-        let unsubs: (()=>void)[] = [];
+        let unsubs: (() => void)[] = [];
 
-        // Universal listeners
+        // Notifications listener (for both users and partners)
         const notifsQuery = query(collection(db, "notifications"), where("userId", "==", user.uid));
         unsubs.push(onSnapshot(notifsQuery, (snapshot) => {
             const allNotifs = snapshot.docs.map(d => ({ 
@@ -237,12 +240,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 ...d.data(), 
                 timestamp: d.data().timestamp ? d.data().timestamp.toDate() : new Date() 
             } as Notification));
-            setNotifications(allNotifs.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime()));
+            setNotifications(allNotifs.sort((a,b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
         }));
 
-        // Role-specific listeners
         if (isPartner) {
-            // PARTNER LISTENERS
+            // PARTNER-SPECIFIC LISTENERS
             unsubs.push(onSnapshot(collection(db, "partners", user.uid, "products"), (snapshot) => {
                 setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
             }));
@@ -252,7 +254,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 const activities = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()}) as LoanActivityItem);
                 setLoanActivity(activities.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
             }));
-
+            
             const qApps = query(collection(db, "applications"), where("loan.partnerId", "==", user.uid));
             unsubs.push(onSnapshot(qApps, async (snapshot) => {
                 const appPromises = snapshot.docs.map(async (d) => {
@@ -268,7 +270,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 setApplications(appsData.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
             }));
         } else {
-            // USER LISTENERS
+            // USER-SPECIFIC LISTENERS
             const qApps = query(collection(db, "applications"), where("userId", "==", user.uid));
             unsubs.push(onSnapshot(qApps, (snapshot) => {
                 const userApps = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application));
@@ -280,6 +282,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                setLoanActivity(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()}) as LoanActivityItem));
             }));
 
+            // Users need to see all partners
             unsubs.push(onSnapshot(collection(db, "partners"), async (snapshot) => {
                 const partnerListPromises = snapshot.docs.map(async (pDoc) => {
                     const productsRef = collection(db, "partners", pDoc.id, "products");
@@ -295,7 +298,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             unsubs.forEach(unsub => unsub());
         }
-    }, [user, loading, dataLoading, isPartner]);
+    }, [user, isPartner, loading, dataLoading]); // Rerun when user/role changes
 
     const setScore = async (score: number | null) => {
         if (!user || isPartner) return;
@@ -344,7 +347,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             ...app,
             score: score,
             userId: user.uid,
-            loan: { ...app.loan, partnerId: targetPartner.id },
+            loan: { ...app.loan, partnerId: targetPartner.id }, // Correctly set partnerId
             createdAt: serverTimestamp()
         };
         await addDoc(collection(db, "applications"), newApp);
@@ -464,11 +467,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const emailSignup = useCallback(async (email: string, pass: string, displayName: string) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
         await updateProfile(userCredential.user, { displayName: displayName.trim() });
+        // The onAuthStateChanged listener will handle creating the user document
     }, []);
 
     const googleLogin = useCallback(async () => {
         const provider = new GoogleAuthProvider();
         await signInWithPopup(auth, provider);
+        // The onAuthStateChanged listener will handle creating the user document if it's a new user
     }, []);
     
     const emailLogin = useCallback(async (email: string, pass: string) => {
@@ -486,6 +491,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             createdAt: serverTimestamp()
         };
         await setDoc(doc(db, "partners", userCredential.user.uid), newPartner);
+        // The onAuthStateChanged listener will handle redirecting
     }, []);
     
     const partnerLogin = useCallback(async (email: string, pass: string) => {
@@ -524,7 +530,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         loanActivity,
     }), [
         user, partner, isPartner, loading, dataLoading, logout, emailLogin, googleLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
-        score, setScore, connectWalletAndSetScore, avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus, userSignLoan,
+        score, connectWalletAndSetScore, avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus, userSignLoan,
         partners, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct,
         notifications, markNotificationsAsRead, loanActivity,
     ]);
@@ -535,3 +541,5 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
+
+    
