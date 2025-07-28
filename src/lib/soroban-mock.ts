@@ -1,3 +1,4 @@
+
 /**
  * MOCK SOROBAN INTEGRATION (FOR TESTING ONLY)
  * REPLACE WITH REAL @stellar/stellar-sdk AND soroban-client IMPLEMENTATION LATER
@@ -102,7 +103,7 @@ export const repayLoan = async (loanId: number, amount: number): Promise<TxHash>
   if (!loan) throw new Error('Loan not found');
 
   const monthlyRate = loan.interestRate / 100 / 12;
-  const totalRepayment = loan.term > 0 ? (loan.amount * monthlyRate * Math.pow(1 + monthlyRate, loan.term)) / (Math.pow(1 + monthlyRate, loan.term) - 1) * loan.term : loan.amount;
+  const totalRepayment = loan.term > 0 ? (loan.amount * monthlyRate * Math.pow(1 + rate, loan.term)) / (Math.pow(1 + rate, loan.term) - 1) * loan.term : loan.amount;
   
   loan.repaid += amount;
   if (loan.repaid >= totalRepayment) {

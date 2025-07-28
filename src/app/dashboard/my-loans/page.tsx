@@ -45,14 +45,16 @@ export default function MyLoansPage() {
         });
 
         try {
+            const loanIdToRepay = parseInt(selectedLoan.sorobanLoanId!.split('-').pop() || '0', 10);
+            
             // TODO: REPLACE WITH REAL SOROBAN CALL
-            const txHash = await repayLoan(parseInt(selectedLoan.sorobanLoanId!, 10), repaymentAmount);
+            const txHash = await repayLoan(loanIdToRepay, repaymentAmount);
 
             // Refresh the loan state from the mock DB to show progress
             await refreshLoanActivity();
 
             // Check if the loan is fully repaid
-            const updatedLoan = await getLoan(parseInt(selectedLoan.sorobanLoanId!, 10));
+            const updatedLoan = await getLoan(loanIdToRepay);
 
             setIsRepaying(false);
             setSelectedLoan(null);
