@@ -10,7 +10,7 @@ import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEma
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 // TODO: REPLACE WITH REAL SOROBAN CALL
-import { createLoan, getLoan } from '@/lib/soroban-mock';
+import { createLoan, getLoan, repayLoan } from '@/lib/soroban-mock';
 
 // Types
 export type LoanProduct = {
@@ -41,7 +41,7 @@ export type LoanActivityItem = {
     repaid?: number;
     interestAccrued?: number;
     status: 'Active' | 'Paid Off' | 'Delinquent' | 'active' | 'repaid' | 'defaulted';
-    createdAt: Date;
+    createdAt: any;
     partnerId: string;
     partnerName: string;
     userId: string;
@@ -215,19 +215,29 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             
         const snapshot = await getDocs(q);
         
-        const updatedLoanActivity = await Promise.all(snapshot.docs.map(async (doc) => {
-            const loan = doc.data() as LoanActivityItem;
-            if (!loan.sorobanLoanId || isNaN(parseInt(loan.sorobanLoanId))) return loan;
+        const updatedLoanActivityPromises = snapshot.docs.map(async (doc) => {
+            const loanData = doc.data() as Omit<LoanActivityItem, 'id' | 'createdAt'>;
+            
+            // Ensure sorobanLoanId is a clean number string before parsing
+            const loanIdNum = parseInt(String(loanData.sorobanLoanId || '0'), 10);
+            
+            if (isNaN(loanIdNum) || loanIdNum === 0) {
+                 return { ...loanData, id: doc.id, createdAt: loanData.createdAt?.toDate() } as LoanActivityItem;
+            }
+            
             // TODO: REPLACE WITH REAL SOROBAN CALL
-            const onChainLoan = await getLoan(parseInt(loan.sorobanLoanId, 10));
+            const onChainLoan = await getLoan(loanIdNum);
+            
             return {
-                ...loan,
-                repaid: onChainLoan?.repaid ?? loan.repaid,
-                status: onChainLoan?.status ?? loan.status,
-                id: doc.id, // Ensure ID is preserved
-                createdAt: loan.createdAt
-            };
-        }));
+                ...loanData,
+                id: doc.id,
+                repaid: onChainLoan?.repaid ?? loanData.repaid,
+                status: onChainLoan?.status ?? loanData.status,
+                createdAt: loanData.createdAt?.toDate()
+            } as LoanActivityItem;
+        });
+        
+        const updatedLoanActivity = await Promise.all(updatedLoanActivityPromises);
     
         setLoanActivity(updatedLoanActivity.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
     
@@ -242,9 +252,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         setDataLoading(true);
         const unsubs: (() => void)[] = [];
+        
+        const refreshAndListen = () => {
+            refreshLoanActivity();
+            const loanActivityRef = collection(db, "loanActivity");
+            const q = isPartner 
+                ? query(loanActivityRef, where("partnerId", "==", user.uid))
+                : query(loanActivityRef, where("userId", "==", user.uid));
+            return onSnapshot(q, () => {
+                refreshLoanActivity();
+            });
+        };
 
         if (isPartner === false) { // USER-specific listeners
-            // Listen to user profile
             unsubs.push(onSnapshot(doc(db, "users", user.uid), (doc) => {
                 if (doc.exists()) {
                     const data = doc.data();
@@ -253,17 +273,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     setWalletAddress(data.walletAddress || null);
                 }
             }));
-
-            // Listen to user's applications
             const qApps = query(collection(db, "applications"), where("userId", "==", user.uid));
             unsubs.push(onSnapshot(qApps, (snapshot) => {
                 const userApps = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application));
                 setApplications(userApps.sort((a,b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
             }));
-            
-            refreshLoanActivity();
-    
-            // Fetch all partners
             unsubs.push(onSnapshot(collection(db, "partners"), async (snapshot) => {
                 const partnerListPromises = snapshot.docs.map(async (pDoc) => {
                     const productsRef = collection(db, "partners", pDoc.id, "products");
@@ -274,46 +288,46 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 const partnerList = await Promise.all(partnerListPromises);
                 setPartners(partnerList);
             }));
-    
-             // Listen to user's notifications
             const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid), where("for", "==", "user"));
             unsubs.push(onSnapshot(qNotifs, (snapshot) => {
                 const userNotifs = snapshot.docs.map(d => ({ ...d.data(), id: d.id, timestamp: d.data().timestamp?.toDate() } as Notification));
                 setNotifications(userNotifs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
-                setDataLoading(false); // End loading when done
             }));
+            unsubs.push(refreshAndListen());
         } else if (isPartner === true) { // PARTNER-specific listeners
-            // Listen to partner products
             unsubs.push(onSnapshot(collection(db, "partners", user.uid, "products"), (snapshot) => {
                 setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
             }));
-        
-            refreshLoanActivity();
-            
-            // Listen for applications submitted to this partner
             const qPartnerApps = query(collection(db, "applications"), where("loan.partnerId", "==", user.uid));
             unsubs.push(onSnapshot(qPartnerApps, (snapshot) => {
-                const appsData = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() }) as Application);
-                setApplications(appsData.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
-                 setDataLoading(false); // End loading when done
-            }, (error) => {
-                console.error("Partner applications listener failed: ", error);
-                setDataLoading(false);
+                const appsDataPromises = snapshot.docs.map(async (d) => {
+                    const app = {...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application;
+                    const userDoc = await getDoc(doc(db, 'users', app.userId));
+                    if (userDoc.exists()) {
+                        app.user = {
+                            displayName: userDoc.data().displayName,
+                            avatarUrl: userDoc.data().avatarUrl,
+                            walletAddress: userDoc.data().walletAddress
+                        }
+                    }
+                    return app;
+                });
+                Promise.all(appsDataPromises).then(appsData => {
+                    setApplications(appsData.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
+                });
             }));
-    
-             // Listen to partner's notifications
             const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid), where("for", "==", "partner"));
             unsubs.push(onSnapshot(qNotifs, (snapshot) => {
                 const pNotifs = snapshot.docs.map(d => ({ ...d.data(), id: d.id, timestamp: d.data().timestamp?.toDate() } as Notification));
                 setNotifications(pNotifs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
             }));
+             unsubs.push(refreshAndListen());
         }
-    
+        setDataLoading(false);
         return () => { unsubs.forEach(unsub => unsub()) };
     
     }, [user, isPartner, refreshLoanActivity]);
     
-    // Redirect useEffect
     useEffect(() => {
        if(!loading && user && isPartner !== null) {
             const currentPath = window.location.pathname;
@@ -348,7 +362,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const connectWalletAndSetScore = useCallback(async () => {
         if (!user || isPartner) return;
         const newScore = Math.floor(Math.random() * (850 - 550 + 1)) + 550;
-        // Using a mock wallet address that exists in the soroban-mock DB
         const newWalletAddress = 'GUSERWALLETMOCK'; 
         await setScore(newScore, newWalletAddress);
         toast({
@@ -378,14 +391,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             ...app,
             score,
             userId: user.uid,
-            user: {
-                displayName: user.displayName || 'Anonymous',
-                avatarUrl: avatarUrl,
-                walletAddress: walletAddress,
-            },
             loan: {
                 ...app.loan,
-                partnerId: targetPartner.id, // Ensure partner ID is in the nested object
+                partnerId: targetPartner.id,
             },
             partnerId: targetPartner.id,
             createdAt: serverTimestamp()
@@ -410,7 +418,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         await batch.commit();
 
-    }, [user, score, partners, avatarUrl, walletAddress]);
+    }, [user, score, partners]);
     
     const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
         if(!auth.currentUser || !isPartner) {
@@ -470,7 +478,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 appData.loan.term
             );
             
-            // Correctly parse the ID from the mock hash
             const loanId = txHash.split('-').pop(); 
             if(!loanId || isNaN(parseInt(loanId))) {
                 throw new Error("Invalid loan ID returned from mock Soroban.");
@@ -503,7 +510,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             batch.set(loanActivityRef, {...loanActivityData, createdAt: serverTimestamp()});
 
             await batch.commit();
-            await refreshLoanActivity(); // Refresh data for both user and partner
+            await refreshLoanActivity();
 
         } catch (e: any) {
             console.error("Mock Soroban error:", e);
@@ -512,6 +519,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 description: e.message || "Could not create loan on the mock Soroban network.",
                 variant: 'destructive',
             });
+            throw e; // re-throw to be caught in component
         }
     }, [user, isPartner, refreshLoanActivity]);
     
@@ -607,7 +615,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         notifications,
         markNotificationsAsRead,
         loanActivity,
-        refreshLoanActivity
+        refreshLoanActivity,
     }), [
         user, partner, isPartner, loading, dataLoading, logout, emailLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
         score, connectWalletAndSetScore, avatarUrl, setAvatarUrl, walletAddress, applications, addApplication, updateApplicationStatus, userSignLoan,

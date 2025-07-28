@@ -1,4 +1,5 @@
 
+
 /**
  * MOCK SOROBAN INTEGRATION (FOR TESTING ONLY)
  * REPLACE WITH REAL @stellar/stellar-sdk AND soroban-client IMPLEMENTATION LATER
@@ -102,13 +103,16 @@ export const repayLoan = async (loanId: number, amount: number): Promise<TxHash>
   const loan = mockDb.loans.get(loanId);
   if (!loan) throw new Error('Loan not found');
 
-  const monthlyRate = loan.interestRate / 100 / 12;
-  const totalRepayment = loan.term > 0 ? (loan.amount * monthlyRate * Math.pow(1 + rate, loan.term)) / (Math.pow(1 + rate, loan.term) - 1) * loan.term : loan.amount;
+  const rate = loan.interestRate / 100 / 12; // monthly rate
+  const totalRepayment = loan.term > 0 
+    ? (loan.amount * rate * Math.pow(1 + rate, loan.term)) / (Math.pow(1 + rate, loan.term) - 1) * loan.term 
+    : loan.amount;
   
   loan.repaid += amount;
+  
   if (loan.repaid >= totalRepayment) {
     loan.status = 'repaid';
-    loan.repaid = totalRepayment; // Cap repayment at total
+    loan.repaid = totalRepayment; // Cap repayment at total, handles overpayment case
   }
   
   return `mock-tx-hash-repay-${loanId}`;
@@ -119,6 +123,7 @@ export const repayLoan = async (loanId: number, amount: number): Promise<TxHash>
  */
 export const getLoan = async (loanId: number): Promise<Loan | undefined> => {
     await simulateNetworkDelay();
+    if (isNaN(loanId)) return undefined;
     return mockDb.loans.get(loanId);
 }
 

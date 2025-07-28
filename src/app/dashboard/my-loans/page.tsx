@@ -20,24 +20,26 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 // TODO: REPLACE WITH REAL SOROBAN CALL
-import { repayLoan, getLoan } from '@/lib/soroban-mock';
+import { repayLoan } from '@/lib/soroban-mock';
 
 export default function MyLoansPage() {
     const { loanActivity, user, refreshLoanActivity } = useContext(UserContext);
     const [selectedLoan, setSelectedLoan] = useState<LoanActivityItem | null>(null);
     const [isRepaying, setIsRepaying] = useState(false);
-    const [repaymentAmount, setRepaymentAmount] = useState(0);
+    const [repaymentAmount, setRepaymentAmount] = useState<number | ''>('');
 
     const userLoans = loanActivity.filter(loan => loan.userId === user?.uid);
 
     const handleRepayClick = (loan: LoanActivityItem) => {
-        const remaining = loan.amount - (loan.repaid || 0) + (loan.interestAccrued || 0);
+        const interest = loan.interestAccrued || 0;
+        const repaid = loan.repaid || 0;
+        const remaining = loan.amount + interest - repaid;
         setRepaymentAmount(remaining);
         setSelectedLoan(loan);
     }
 
     const handlePayment = async () => {
-        if (!selectedLoan || repaymentAmount <= 0) return;
+        if (!selectedLoan || !repaymentAmount || repaymentAmount <= 0) return;
         setIsRepaying(true);
         toast({
             title: "Submitting to Soroban...",
@@ -45,7 +47,11 @@ export default function MyLoansPage() {
         });
 
         try {
-            const loanIdToRepay = parseInt(selectedLoan.sorobanLoanId!.split('-').pop() || '0', 10);
+            // Ensure sorobanLoanId is a clean number before passing it.
+            const loanIdToRepay = parseInt(selectedLoan.sorobanLoanId || '0', 10);
+            if (isNaN(loanIdToRepay) || loanIdToRepay === 0) {
+                 throw new Error("Invalid Loan ID found.");
+            }
             
             // TODO: REPLACE WITH REAL SOROBAN CALL
             const txHash = await repayLoan(loanIdToRepay, repaymentAmount);
@@ -53,23 +59,16 @@ export default function MyLoansPage() {
             // Refresh the loan state from the mock DB to show progress
             await refreshLoanActivity();
 
-            // Check if the loan is fully repaid
-            const updatedLoan = await getLoan(loanIdToRepay);
-
             setIsRepaying(false);
             setSelectedLoan(null);
+            setRepaymentAmount('');
+
 
             toast({
                 title: "Payment Successful!",
                 description: `Repayment of $${repaymentAmount.toLocaleString()} for ${selectedLoan.partnerName} confirmed. Mock TX: ${txHash.substring(0, 20)}...`,
             });
             
-            if (updatedLoan?.status === 'repaid') {
-                 toast({
-                    title: "Loan Paid Off!",
-                    description: `Congratulations! Your loan from ${selectedLoan.partnerName} is fully repaid.`,
-                });
-            }
 
         } catch(e: any) {
             console.error("Mock Soroban error:", e);
@@ -83,8 +82,9 @@ export default function MyLoansPage() {
     }
 
     const getStatusVariant = (status: string) => {
-        if (status === 'Active' || status === 'active') return 'default';
-        if (status === 'Paid Off' || status === 'repaid') return 'secondary';
+        const lowerStatus = status.toLowerCase();
+        if (lowerStatus === 'active') return 'default';
+        if (lowerStatus === 'repaid' || lowerStatus === 'paid off') return 'secondary';
         return 'destructive';
     }
 
@@ -122,7 +122,8 @@ export default function MyLoansPage() {
                                     const interest = loan.interestAccrued || 0;
                                     const totalToRepay = loan.amount + interest;
                                     const repaid = loan.repaid || 0;
-                                    const progress = (repaid / totalToRepay) * 100;
+                                    const progress = totalToRepay > 0 ? (repaid / totalToRepay) * 100 : 0;
+                                    const isPaidOff = loan.status.toLowerCase() === 'repaid' || loan.status.toLowerCase() === 'paid off';
                                     return (
                                         <TableRow key={loan.id}>
                                             <TableCell className="font-medium">{loan.partnerName}</TableCell>
@@ -136,10 +137,10 @@ export default function MyLoansPage() {
                                                 <p className="text-xs text-muted-foreground">{formatCurrency(repaid)} / {formatCurrency(totalToRepay)}</p>
                                             </TableCell>
                                             <TableCell className="text-center">
-                                                <Badge variant={getStatusVariant(loan.status)}>{loan.status === 'repaid' ? 'Paid Off' : 'Active'}</Badge>
+                                                <Badge variant={getStatusVariant(loan.status)}>{isPaidOff ? 'Paid Off' : 'Active'}</Badge>
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <Button size="sm" onClick={() => handleRepayClick(loan)} disabled={loan.status === 'Paid Off' || loan.status === 'repaid'}>
+                                                <Button size="sm" onClick={() => handleRepayClick(loan)} disabled={isPaidOff}>
                                                     Make Payment
                                                 </Button>
                                             </TableCell>
@@ -175,7 +176,7 @@ export default function MyLoansPage() {
                             <Input 
                                 id="repayment-amount"
                                 type="number"
-                                value={repaymentAmount || 0}
+                                value={repaymentAmount || ''}
                                 onChange={(e) => setRepaymentAmount(parseFloat(e.target.value))}
                                 max={selectedLoan ? selectedLoan.amount + (selectedLoan.interestAccrued || 0) - (selectedLoan.repaid || 0) : 0}
                                 min="0"
@@ -184,8 +185,8 @@ export default function MyLoansPage() {
                     </div>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setSelectedLoan(null)} disabled={isRepaying}>Cancel</Button>
-                        <Button onClick={handlePayment} disabled={isRepaying || repaymentAmount <= 0}>
-                            {isRepaying ? 'Processing...' : `Pay ${formatCurrency(repaymentAmount)}`}
+                        <Button onClick={handlePayment} disabled={isRepaying || !repaymentAmount || repaymentAmount <= 0}>
+                            {isRepaying ? 'Processing...' : `Pay ${formatCurrency(Number(repaymentAmount))}`}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
