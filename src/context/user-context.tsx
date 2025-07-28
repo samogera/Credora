@@ -88,7 +88,7 @@ interface UserContextType {
     avatarUrl: string | null;
     setAvatarUrl: (url: string) => void;
     applications: Application[];
-    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'userAvatar'>) => Promise<void>;
+    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt'>) => Promise<void>;
     updateApplicationStatus: (appId: string, status: 'Approved' | 'Denied') => Promise<void>;
     userSignLoan: (appId: string) => Promise<void>;
     partners: Partner[];
@@ -118,9 +118,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const loading = !authInitialized;
 
-    const addNotification = useCallback(async (notification: Omit<Notification, 'id' | 'timestamp'>) => {
+    const addNotification = useCallback(async (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
         try {
-            await addDoc(collection(db, 'notifications'), { ...notification, timestamp: serverTimestamp() });
+            await addDoc(collection(db, 'notifications'), { ...notification, read: false, timestamp: serverTimestamp() });
         } catch (error) {
             console.error("Error adding notification:", error);
         }
@@ -158,7 +158,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             type: 'info',
             title: 'Loan Activated',
             message: `${appToSign.user.displayName} has signed the contract. The loan is now active.`,
-            read: false,
         });
         await addNotification({
             for: 'user',
@@ -166,7 +165,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             type: 'info',
             title: 'Funds Disbursed!',
             message: `Funds for your ${appToSign.loan.name} have been disbursed. You can track your loan in the 'My Loans' section.`,
-            read: false
         })
 
     }, [applications, addNotification]);
@@ -185,7 +183,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 type: 'approval',
                 title: `Loan Approved`,
                 message: `Your application for the ${appToUpdate.loan.name} is approved! Please sign the contract on your dashboard to receive your funds.`,
-                read: false,
             });
         } else { // Denied
             await addNotification({
@@ -194,7 +191,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 type: 'denial',
                 title: `Loan Denied`,
                 message: `Your application for the ${appToUpdate.loan.name} has been denied.`,
-                read: false,
             });
         }
     }, [applications, addNotification]);
@@ -205,11 +201,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             setUser(null);
             setPartner(null);
             setIsPartner(false);
-            setApplications([]);
-            setLoanActivity([]);
-            setNotifications([]);
-            setPartnerProducts([]);
-
+            
             if (currentUser) {
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
                 const partnerDocSnap = await getDoc(partnerDocRef);
@@ -217,12 +209,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 if (partnerDocSnap.exists()) {
                     setIsPartner(true);
                     setPartner({ id: currentUser.uid, ...partnerDocSnap.data() } as Partner);
-                    setUser(currentUser);
                 } else {
                     const userDocRef = doc(db, "users", currentUser.uid);
                     const userDocSnap = await getDoc(userDocRef);
                     if (!userDocSnap.exists()) {
-                        await setDoc(userDocRef, { 
+                         await setDoc(userDocRef, { 
                             displayName: currentUser.displayName || `User-${currentUser.uid.substring(0,5)}`, 
                             email: currentUser.email,
                             avatarUrl: currentUser.photoURL, 
@@ -230,8 +221,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                         });
                     }
                     setIsPartner(false);
-                    setUser(currentUser);
                 }
+                setUser(currentUser);
             }
             setAuthInitialized(true);
         });
@@ -249,7 +240,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const userDocRef = doc(db, "users", user.uid);
         const unsubUser = onSnapshot(userDocRef, (doc) => {
             if (doc.exists()) {
-                setAvatarUrlState(doc.data().avatarUrl || null);
+                setAvatarUrlState(doc.data().avatarUrl || user.photoURL || null);
             }
         });
 
@@ -266,11 +257,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         const qApps = query(collection(db, "applications"), where("userId", "==", user.uid));
         const unsubApps = onSnapshot(qApps, (snapshot) => {
-             const appsData = snapshot.docs.map(d => ({
-                id: d.id,
-                ...d.data(),
-                createdAt: d.data().createdAt?.toDate(),
-            }) as Application);
+             const appsData = snapshot.docs.map(d => {
+                 const data = d.data();
+                 return {
+                    id: d.id,
+                    ...data,
+                    createdAt: data.createdAt?.toDate(),
+                    user: { displayName: user.displayName || "Anonymous" , avatarUrl: avatarUrl }
+                } as Application
+            });
             setApplications(appsData);
         }, (error) => console.error("User Applications listener error: ", error));
         
@@ -283,11 +278,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             unsubApps();
             unsubUserLoans();
         }
-    }, [user, isPartner]);
+    }, [user, isPartner, avatarUrl]);
 
     // Listener for partner-specific data
     useEffect(() => {
-        if (!partner || !isPartner) {
+        if (!user || !isPartner || !partner) {
             setPartnerProducts([]);
             setLoanActivity([]);
             setApplications([]);
@@ -330,7 +325,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
            unsubLoanActivity();
            unsubApps();
        }
-    }, [partner, isPartner]);
+    }, [user, isPartner, partner]);
     
     // Listener for ALL partners (for user view)
     useEffect(() => {
@@ -385,16 +380,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, [user, isPartner, partner]);
     
     const setAvatarUrl = useCallback(async (url: string) => {
-        if (!user) return;
+        if (!user || isPartner) return;
         const userDocRef = doc(db, "users", user.uid);
         await updateDoc(userDocRef, { avatarUrl: url });
-    }, [user]);
+    }, [user, isPartner]);
 
-    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'userAvatar'>) => {
+    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt'>) => {
         if (!user) throw new Error("User not logged in.");
-        
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDocSnap = await getDoc(userDocRef);
         
         const targetPartner = partners.find(p => p.name === app.loan.partnerName);
         if (!targetPartner) throw new Error("Lending partner not found.");
@@ -402,22 +394,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const newApp = {
             ...app,
             userId: user.uid,
-            user: {
-                displayName: userDocSnap.data()?.displayName || 'Anonymous User',
-                avatarUrl: userDocSnap.data()?.avatarUrl || null,
-            },
             loan: { ...app.loan, partnerId: targetPartner.id },
             createdAt: serverTimestamp()
         };
-        await addDoc(collection(db, "applications"), newApp);
+        const newAppRef = await addDoc(collection(db, "applications"), newApp);
 
-         await addNotification({
+        await addNotification({
             for: 'partner',
             userId: targetPartner.id,
             type: 'new_application',
             title: 'New Application',
-            message: `${newApp.user.displayName} applied for $${newApp.amount.toLocaleString()} (${newApp.loan.name}).`,
-            read: false,
+            message: `${user.displayName || 'A new user'} applied for $${newApp.amount.toLocaleString()} (${newApp.loan.name}).`,
         })
     }, [user, partners, addNotification]);
     
@@ -464,7 +451,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const googleLogin = useCallback(async () => {
         const provider = new GoogleAuthProvider();
-        await signInWithPopup(auth, provider);
+        const result = await signInWithPopup(auth, provider);
+        const userDocRef = doc(db, "users", result.user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (!userDocSnap.exists()) {
+             await setDoc(userDocRef, { 
+                displayName: result.user.displayName || `User-${result.user.uid.substring(0,5)}`, 
+                email: result.user.email,
+                avatarUrl: result.user.photoURL, 
+                createdAt: serverTimestamp()
+            });
+        }
     }, []);
     
     const emailLogin = useCallback(async (email: string, pass: string) => {
