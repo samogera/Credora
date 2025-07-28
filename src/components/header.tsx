@@ -75,7 +75,7 @@ export function Header() {
           </div>
           <div className="space-y-1 p-2 max-h-80 overflow-y-auto">
             {relevantNotifications.length > 0 ? relevantNotifications.slice(0, 5).map((notification) => (
-              <Link key={notification.id} href={notification.href} passHref>
+              <Link key={notification.id} href={notification.href || (isPartnerView ? '/dashboard/partner-admin' : '/dashboard')} passHref>
                 <div className="flex items-start gap-3 rounded-md p-2 text-sm hover:bg-accent cursor-pointer">
                   <div className="mt-1">{getNotificationIcon(notification.type)}</div>
                   <div className="flex-1">
