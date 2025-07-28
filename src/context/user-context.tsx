@@ -116,11 +116,99 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [loanActivity, setLoanActivity] = useState<LoanActivityItem[]>([]);
     const [partnerProducts, setPartnerProducts] = useState<LoanProduct[]>([]);
 
+    const loading = !authInitialized;
+
+    const addNotification = useCallback(async (notification: Omit<Notification, 'id' | 'timestamp'>) => {
+        try {
+            await addDoc(collection(db, 'notifications'), { ...notification, timestamp: serverTimestamp() });
+        } catch (error) {
+            console.error("Error adding notification:", error);
+        }
+    }, []);
+
+    const userSignLoan = useCallback(async (appId: string) => {
+        const appToSign = applications.find(a => a.id === appId);
+        if (!appToSign || appToSign.status !== 'Approved') {
+            throw new Error("This loan cannot be signed at this time.");
+        }
+
+        const batch = writeBatch(db);
+
+        const appRef = doc(db, "applications", appId);
+        batch.update(appRef, { status: 'Signed' });
+
+        const loanActivityRef = doc(collection(db, 'loanActivity'));
+        batch.set(loanActivityRef, {
+            user: { displayName: appToSign.user.displayName || 'Unknown User' },
+            userId: appToSign.userId,
+            partnerId: appToSign.loan.partnerId,
+            partnerName: appToSign.loan.partnerName,
+            amount: appToSign.amount,
+            repaid: 0,
+            interestAccrued: 0,
+            status: 'Active',
+            createdAt: serverTimestamp(),
+        });
+        
+        await batch.commit();
+
+        await addNotification({
+            for: 'partner',
+            userId: appToSign.loan.partnerId,
+            type: 'info',
+            title: 'Loan Activated',
+            message: `${appToSign.user.displayName} has signed the contract. The loan is now active.`,
+            read: false,
+        });
+        await addNotification({
+            for: 'user',
+            userId: appToSign.userId,
+            type: 'info',
+            title: 'Funds Disbursed!',
+            message: `Funds for your ${appToSign.loan.name} have been disbursed. You can track your loan in the 'My Loans' section.`,
+            read: false
+        })
+
+    }, [applications, addNotification]);
+
+    const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
+        const appRef = doc(db, "applications", appId);
+        await updateDoc(appRef, { status });
+
+        const appToUpdate = applications.find(a => a.id === appId);
+        if (!appToUpdate) throw new Error("Application not found");
+        
+        if (status === 'Approved') {
+            await addNotification({
+                for: 'user',
+                userId: appToUpdate.userId,
+                type: 'approval',
+                title: `Loan Approved`,
+                message: `Your application for the ${appToUpdate.loan.name} is approved! Please sign the contract on your dashboard to receive your funds.`,
+                read: false,
+            });
+        } else { // Denied
+            await addNotification({
+                for: 'user',
+                userId: appToUpdate.userId,
+                type: 'denial',
+                title: `Loan Denied`,
+                message: `Your application for the ${appToUpdate.loan.name} has been denied.`,
+                read: false,
+            });
+        }
+    }, [applications, addNotification]);
+
+
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(null);
             setPartner(null);
             setIsPartner(false);
+            setApplications([]);
+            setLoanActivity([]);
+            setNotifications([]);
+            setPartnerProducts([]);
 
             if (currentUser) {
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
@@ -151,17 +239,30 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return () => unsubscribe();
     }, []);
     
+    // Listener for general user data (avatar)
     useEffect(() => {
         if (!user || isPartner) {
-            setApplications([]);
+            setAvatarUrlState(null)
             return;
-        };
+        }
 
-        const unsubUser = onSnapshot(doc(db, "users", user.uid), (doc) => {
+        const userDocRef = doc(db, "users", user.uid);
+        const unsubUser = onSnapshot(userDocRef, (doc) => {
             if (doc.exists()) {
                 setAvatarUrlState(doc.data().avatarUrl || null);
             }
-        }, (error) => console.error("User listener error: ", error));
+        });
+
+        return () => unsubUser();
+    }, [user, isPartner]);
+
+    // Listener for user-specific data (their applications and loans)
+    useEffect(() => {
+        if (!user || isPartner) {
+            setApplications([]);
+            setLoanActivity([]);
+            return;
+        };
 
         const qApps = query(collection(db, "applications"), where("userId", "==", user.uid));
         const unsubApps = onSnapshot(qApps, (snapshot) => {
@@ -179,17 +280,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }, (error) => console.error("User Loan activity listener error: ", error));
 
         return () => { 
-            unsubUser();
             unsubApps();
             unsubUserLoans();
         }
     }, [user, isPartner]);
 
+    // Listener for partner-specific data
     useEffect(() => {
         if (!partner || !isPartner) {
             setPartnerProducts([]);
-            if(!isPartner) setLoanActivity([]); // Clear loan activity if not a partner
-            if(!isPartner) setApplications([]); // Clear applications if not a partner
+            setLoanActivity([]);
+            setApplications([]);
             return;
         }
 
@@ -231,6 +332,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
        }
     }, [partner, isPartner]);
     
+    // Listener for ALL partners (for user view)
     useEffect(() => {
         const unsubPartners = onSnapshot(collection(db, "partners"), async (snapshot) => {
             const partnerListPromises = snapshot.docs.map(async (pDoc) => {
@@ -251,6 +353,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return () => unsubPartners();
     }, []);
 
+    // Listener for notifications
     useEffect(() => {
         if (!user) {
             setNotifications([]);
@@ -277,88 +380,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return () => unsubNotifs();
     }, [user, isPartner, partner]);
     
-    const addNotification = useCallback(async (notification: Omit<Notification, 'id' | 'timestamp'>) => {
-        await addDoc(collection(db, 'notifications'), { ...notification, timestamp: serverTimestamp() });
-    }, []);
-
-    const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
-        const appRef = doc(db, "applications", appId);
-        await updateDoc(appRef, { status });
-
-        const appToUpdate = applications.find(a => a.id === appId);
-        if (!appToUpdate) throw new Error("Application not found");
-        
-        if (status === 'Approved') {
-            await addNotification({
-                for: 'user',
-                userId: appToUpdate.userId,
-                type: 'approval',
-                title: `Loan Approved`,
-                message: `Your application for the ${appToUpdate.loan.name} is approved! Please sign the contract on your dashboard to receive your funds.`,
-                read: false,
-            });
-        } else { // Denied
-            await addNotification({
-                for: 'user',
-                userId: appToUpdate.userId,
-                type: 'denial',
-                title: `Loan Denied`,
-                message: `Your application for the ${appToUpdate.loan.name} has been denied.`,
-                read: false,
-            });
-        }
-    }, [applications, addNotification]);
-
-    const userSignLoan = useCallback(async (appId: string) => {
-        const appToSign = applications.find(a => a.id === appId);
-        if (!appToSign || appToSign.status !== 'Approved') {
-            throw new Error("This loan cannot be signed at this time.");
-        }
-
-        const batch = writeBatch(db);
-
-        const appRef = doc(db, "applications", appId);
-        batch.update(appRef, { status: 'Signed' });
-
-        const loanActivityRef = doc(collection(db, 'loanActivity'));
-        batch.set(loanActivityRef, {
-            user: { displayName: appToSign.user.displayName },
-            userId: appToSign.userId,
-            partnerId: appToSign.loan.partnerId,
-            partnerName: appToSign.loan.partnerName,
-            amount: appToSign.amount,
-            repaid: 0,
-            interestAccrued: 0,
-            status: 'Active',
-            createdAt: serverTimestamp(),
-        });
-        
-        await batch.commit();
-
-        await addNotification({
-            for: 'partner',
-            userId: appToSign.loan.partnerId,
-            type: 'info',
-            title: 'Loan Activated',
-            message: `${appToSign.user.displayName} has signed the contract. The loan is now active.`,
-            read: false,
-        });
-        await addNotification({
-            for: 'user',
-            userId: appToSign.userId,
-            type: 'info',
-            title: 'Funds Disbursed!',
-            message: `Funds for your ${appToSign.loan.name} have been disbursed. You can track your loan in the 'My Loans' section.`,
-            read: false
-        })
-
-    }, [applications, addNotification]);
-
     const setAvatarUrl = useCallback(async (url: string) => {
         if (!user) return;
         const userDocRef = doc(db, "users", user.uid);
         await updateDoc(userDocRef, { avatarUrl: url });
-        setAvatarUrlState(url);
     }, [user]);
 
     const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'userAvatar'>) => {
@@ -460,16 +485,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = useCallback(async () => {
         await signOut(auth);
-        setUser(null);
-        setPartner(null);
-        setIsPartner(false);
-        setApplications([]);
-        setLoanActivity([]);
-        setNotifications([]);
     }, []);
     
-    const loading = !authInitialized;
-
     const contextValue = useMemo(() => ({
         user,
         partner,

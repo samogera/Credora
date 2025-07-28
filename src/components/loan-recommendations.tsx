@@ -24,7 +24,10 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
     const [result, setResult] = useState<GetLoanRecommendationsOutput | null>(null);
 
     const handleGetRecommendations = useCallback(async () => {
-        if (userContextLoading) return;
+        if (userContextLoading || partners.length === 0) {
+            setIsLoading(false);
+            return;
+        }
         setIsLoading(true);
         setError(null);
 
@@ -63,7 +66,7 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
         if(!userContextLoading) {
             handleGetRecommendations();
         }
-    }, [handleGetRecommendations, score, partners, userContextLoading]);
+    }, [handleGetRecommendations, score, userContextLoading]);
 
     const recommendedLoans = result?.recommendations?.filter(r => r.isRecommended) || [];
     const otherLoans = result?.recommendations?.filter(r => !r.isRecommended) || [];
@@ -97,9 +100,9 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                         <AlertDescription>{error}</AlertDescription>
                     </Alert>
                 )}
-                {!showLoading && !error && result && (
+                {!showLoading && !error && (
                     <div className="space-y-4">
-                        {partners.length === 0 && (
+                        {!partners || partners.length === 0 && (
                              <Alert>
                                 <Lightbulb className="h-4 w-4" />
                                 <AlertTitle>No Partners Available</AlertTitle>
@@ -108,12 +111,12 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                                 </AlertDescription>
                             </Alert>
                         )}
-                        {partners.length > 0 && recommendedLoans.length === 0 && result.improvementSuggestion && (
+                        {partners.length > 0 && result && result.recommendations.length === 0 && (
                             <Alert>
                                 <Lightbulb className="h-4 w-4" />
                                 <AlertTitle>Actionable Advice</AlertTitle>
                                 <AlertDescription>
-                                    {result.improvementSuggestion}
+                                    {result.improvementSuggestion || "We couldn't find any suitable loans for your current score. Try improving your score by connecting more data sources."}
                                 </AlertDescription>
                             </Alert>
                         )}
@@ -150,5 +153,3 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
         </Card>
     );
 }
-
-    
