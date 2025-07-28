@@ -55,9 +55,13 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
         try {
             const aiResult = await getLoanRecommendations(input);
             setResult(aiResult);
-        } catch (e) {
+        } catch (e: any) {
             console.error("Error getting loan recommendations:", e);
-            setError("We couldn't fetch your AI recommendations at this time. Please try again later.");
+            if (e.message && e.message.includes('429')) {
+                setError("You have exceeded the daily limit for AI recommendations. Please try again tomorrow.");
+            } else {
+                setError("We couldn't fetch your AI recommendations at this time. Please try again later.");
+            }
             toast({
                 variant: 'destructive',
                 title: "Recommendation Error",
