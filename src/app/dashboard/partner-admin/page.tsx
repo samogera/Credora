@@ -37,7 +37,7 @@ export default function PartnerAdminPage() {
         updateApplicationStatus(appToUpdate.id, decision);
         toast({
             title: `Application ${decision}`,
-            description: `The application from ${appToUpdate.user.displayName} has been ${decision.toLowerCase()}.`
+            description: `The application from ${appToUpdate.user?.displayName || 'Unknown User'} has been ${decision.toLowerCase()}.`
         });
     };
     
@@ -119,12 +119,12 @@ export default function PartnerAdminPage() {
                                     <TableRow key={app.id}>
                                         <TableCell className="font-medium flex items-center gap-2">
                                             <Avatar className='h-8 w-8'>
-                                                <AvatarImage src={app.user.avatarUrl || ''} alt={app.user.displayName} />
+                                                <AvatarImage src={app.user?.avatarUrl || ''} alt={app.user?.displayName || 'Unknown User'} />
                                                 <AvatarFallback>
                                                     <User />
                                                 </AvatarFallback>
                                             </Avatar>
-                                            <span>{app.user.displayName}</span>
+                                            <span>{app.user?.displayName || 'Unknown User'}</span>
                                         </TableCell>
                                         <TableCell className={`text-center font-bold text-lg ${getScoreColor(app.score)}`}>{app.score}</TableCell>
                                         <TableCell>{app.loan.name}</TableCell>
@@ -161,14 +161,14 @@ export default function PartnerAdminPage() {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                              <Avatar>
-                                <AvatarImage src={selectedApplication?.user.avatarUrl || ''} alt={selectedApplication?.user.displayName} />
+                                <AvatarImage src={selectedApplication?.user?.avatarUrl || ''} alt={selectedApplication?.user?.displayName} />
                                 <AvatarFallback>
                                     <User />
                                 </AvatarFallback>
                             </Avatar>
                             Borrower Profile
                         </DialogTitle>
-                        <DialogDescription>{selectedApplication?.user.displayName} - {selectedApplication?.loan.name}</DialogDescription>
+                        <DialogDescription>{selectedApplication?.user?.displayName} - {selectedApplication?.loan.name}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-6 py-4">
                         <div className="grid grid-cols-2 gap-4 text-center">
