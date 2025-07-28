@@ -124,7 +124,7 @@ export default function MyLoansPage() {
                     </DialogHeader>
                     <div className="py-4 space-y-4">
                         <p className="text-center text-lg">
-                            Amount Due: <span className="font-bold text-primary">${(selectedLoan ? selectedLoan.amount - (selectedLoan.repaid || 0) : 0).toLocaleString()}</span>
+                            Amount Due: <span className="font-bold text-primary">${(selectedLoan ? selectedLoan.amount - (selectedLoan.repaid || 0) : 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </p>
                         <div className="grid grid-cols-2 gap-4">
                             <Button variant="outline" className="h-20 flex-col gap-2"><Wallet className="h-6 w-6" />Stellar Wallet</Button>
@@ -144,3 +144,5 @@ export default function MyLoansPage() {
         </>
     )
 }
+
+    
