@@ -32,7 +32,7 @@ export type Partner = {
 
 export type LoanActivityItem = {
     id: string; // Firestore doc ID
-    sorobanLoanId?: string; // ID from the mock/real Soroban contract
+    sorobanLoanId?: number; // ID from the mock/real Soroban contract
     user: {
         displayName: string;
     };
@@ -217,9 +217,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const updatedLoanActivityPromises = snapshot.docs.map(async (doc) => {
             const loanData = doc.data() as Omit<LoanActivityItem, 'id' | 'createdAt'>;
             
-            const loanIdNum = parseInt(String(loanData.sorobanLoanId || '0'), 10);
+            const loanIdNum = loanData.sorobanLoanId;
             
-            if (isNaN(loanIdNum) || loanIdNum <= 0) {
+            if (typeof loanIdNum !== 'number' || isNaN(loanIdNum) || loanIdNum <= 0) {
                  return { ...loanData, id: doc.id, createdAt: loanData.createdAt?.toDate() } as LoanActivityItem;
             }
             
@@ -467,8 +467,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         
         try {
             const txHash = await createLoan(
-                appData.loan.partnerId, 
-                appData.user?.walletAddress || '', 
+                appData.partnerId, 
+                appData.user?.walletAddress || user.uid, 
                 appData.amount,
                 appData.loan.interestRate,
                 appData.loan.term
@@ -483,12 +483,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             const rate = appData.loan.interestRate / 100 / 12;
             const term = appData.loan.term;
             const principal = appData.amount;
-            const monthlyPayment = term > 0 ? (principal * rate * (Math.pow(1 + rate, term))) / (Math.pow(1 + rate, term) - 1) : principal;
-            const totalRepayment = term > 0 ? monthlyPayment * term : principal;
+            const totalRepayment = term > 0 ? (principal * rate * (Math.pow(1 + rate, term))) / (Math.pow(1 + rate, term) - 1) * term : principal;
             const totalInterest = totalRepayment - principal;
 
             const loanActivityData: Omit<LoanActivityItem, 'id' | 'createdAt'> = {
-                sorobanLoanId: String(loanId),
+                sorobanLoanId: loanId,
                 user: { displayName: appData.user?.displayName || user.displayName || 'Unknown User' },
                 userId: appData.userId,
                 partnerId: appData.partnerId,
