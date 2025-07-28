@@ -267,10 +267,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             const allNotifs = snapshot.docs
                 .map(d => {
                     const data = d.data();
+                    // Defensively check if timestamp exists
                     return ({ 
                         id: d.id, 
                         ...data, 
-                        timestamp: data.timestamp?.toDate() || new Date() 
+                        timestamp: data.timestamp ? data.timestamp.toDate() : new Date() 
                     } as Notification)
                 })
                 .sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
@@ -317,6 +318,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
         const appRef = doc(db, "applications", appId);
         await updateDoc(appRef, { status });
+    }, []);
+
+    const addNotification = useCallback(async (notification: Omit<Notification, 'id' | 'timestamp'>) => {
+        await addDoc(collection(db, 'notifications'), { ...notification, timestamp: serverTimestamp() });
     }, []);
 
     const userSignLoan = useCallback(async (appId: string) => {
@@ -367,10 +372,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         if (!partner) return;
         await deleteDoc(doc(db, "partners", partner.id, "products", id));
     }, [partner]);
-
-    const addNotification = useCallback(async (notification: Omit<Notification, 'id' | 'timestamp'>) => {
-        await addDoc(collection(db, 'notifications'), { ...notification, timestamp: serverTimestamp() });
-    }, []);
 
     const markNotificationsAsRead = useCallback(async (role: 'user' | 'partner') => {
        const relevantId = isPartner ? partner?.id : user?.uid;
