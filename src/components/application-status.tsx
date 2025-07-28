@@ -13,28 +13,29 @@ export function ApplicationStatus() {
   const { applications, userSignLoan, user } = useContext(UserContext);
   const [signingId, setSigningId] = useState<string | null>(null);
 
-  const handleSign = (appId: string) => {
+  const handleSign = async (appId: string) => {
     setSigningId(appId);
     toast({
         title: "Executing Contract...",
         description: "Please wait while we finalize your loan agreement on the Soroban network.",
     })
     
-    userSignLoan(appId).then(() => {
+    try {
+        await userSignLoan(appId);
         toast({
             title: "Congratulations!",
             description: "Your loan has been approved and funds are being transferred.",
-        })
-        setSigningId(null);
-    }).catch(error => {
+        });
+    } catch(error: any) {
         console.error("Signing error:", error);
         toast({
             variant: "destructive",
             title: "Signing Failed",
-            description: "Could not finalize the loan. Please try again.",
+            description: error.message || "Could not finalize the loan. Please try again.",
         })
+    } finally {
         setSigningId(null);
-    })
+    }
   }
 
   const getStatusVariant = (status: string) => {
@@ -88,3 +89,5 @@ export function ApplicationStatus() {
     </Card>
   );
 }
+
+    
