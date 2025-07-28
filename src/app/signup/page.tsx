@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, KeyRound, Mail, Building } from "lucide-react";
+import { User, KeyRound, Mail } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { UserContext } from "@/context/user-context";
 import { useRouter } from "next/navigation";
@@ -91,15 +91,15 @@ export default function SignupPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                  <Label htmlFor="displayName" className="flex items-center gap-2"><User /> Full Name</Label>
+                  <Label htmlFor="displayName" className="flex items-center gap-2"><User className="h-4 w-4" /> Full Name</Label>
                   <Input id="displayName" placeholder="John Doe" required value={displayName} onChange={e => setDisplayName(e.target.value)} disabled={isLoading} />
               </div>
               <div className="space-y-2">
-                  <Label htmlFor="email" className="flex items-center gap-2"><Mail /> Email Address</Label>
+                  <Label htmlFor="email" className="flex items-center gap-2"><Mail className="h-4 w-4" /> Email Address</Label>
                   <Input id="email" type="email" placeholder="you@example.com" required value={email} onChange={e => setEmail(e.target.value)} disabled={isLoading} />
               </div>
               <div className="space-y-2">
-                  <Label htmlFor="password" className="flex items-center gap-2"><KeyRound /> Password</Label>
+                  <Label htmlFor="password" className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> Password</Label>
                   <Input id="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} disabled={isLoading} />
               </div>
 

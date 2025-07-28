@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, KeyRound, Mail } from "lucide-react";
+import { Mail, KeyRound } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { UserContext } from "@/context/user-context";
 import { useRouter } from "next/navigation";
@@ -15,7 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 
 export default function LoginPage() {
-  const { user, loading, emailLogin, googleLogin } = useContext(UserContext);
+  const { user, loading, emailLogin, googleLogin, isPartner } = useContext(UserContext);
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,9 +23,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-        router.push('/dashboard');
+        if (isPartner) {
+            router.push('/dashboard/partner-admin');
+        } else {
+            router.push('/dashboard');
+        }
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, isPartner]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,11 +90,11 @@ export default function LoginPage() {
             </CardHeader>
             <CardContent className="space-y-4">
                  <div className="space-y-2">
-                    <Label htmlFor="email" className="flex items-center gap-2"><Mail /> Email Address</Label>
+                    <Label htmlFor="email" className="flex items-center gap-2"><Mail className="h-4 w-4" /> Email Address</Label>
                     <Input id="email" type="email" placeholder="you@example.com" required value={email} onChange={e => setEmail(e.target.value)} disabled={isLoading} />
                 </div>
                  <div className="space-y-2">
-                    <Label htmlFor="password" className="flex items-center gap-2"><KeyRound /> Password</Label>
+                    <Label htmlFor="password" className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> Password</Label>
                     <Input id="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} disabled={isLoading} />
                 </div>
                  <Button className="w-full font-semibold" type="submit" disabled={isLoading}>

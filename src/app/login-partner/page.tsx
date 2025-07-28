@@ -14,17 +14,17 @@ import { UserContext } from "@/context/user-context";
 import { toast } from "@/hooks/use-toast";
 
 export default function LoginPartnerPage() {
-    const { partnerLogin, isPartner, loading } = useContext(UserContext);
+    const { partnerLogin, isPartner, loading, user } = useContext(UserContext);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const router = useRouter();
 
     useEffect(() => {
-        if (!loading && isPartner) {
+        if (!loading && user && isPartner) {
             router.push('/dashboard/partner-admin');
         }
-    }, [isPartner, loading, router]);
+    }, [isPartner, loading, router, user]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -97,5 +97,3 @@ export default function LoginPartnerPage() {
     </div>
   );
 }
-
-    

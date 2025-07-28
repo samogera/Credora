@@ -17,10 +17,12 @@ export function DataSources() {
               <Wallet className="h-8 w-8 text-primary" />
               <div>
                 <p className="font-semibold">Stellar Wallet</p>
-                <p className="text-sm text-muted-foreground font-code">GABC...XYZ</p>
+                <p className="text-sm text-muted-foreground">Not connected</p>
               </div>
             </div>
-            <Badge variant="default" className="bg-green-500 hover:bg-green-600">Connected</Badge>
+            <Button variant="outline" size="sm">
+                <LinkIcon className="mr-2 h-4 w-4" /> Connect
+            </Button>
           </li>
           <li className="flex items-center justify-between">
             <div className="flex items-center gap-4">
