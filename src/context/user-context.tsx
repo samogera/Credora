@@ -334,6 +334,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     
     // Listener for ALL partners (for user view)
     useEffect(() => {
+        if (isPartner) {
+            setPartners([]);
+            return;
+        }
         const unsubPartners = onSnapshot(collection(db, "partners"), async (snapshot) => {
             const partnerListPromises = snapshot.docs.map(async (pDoc) => {
                 const partnerData = pDoc.data();
@@ -351,7 +355,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }, (error) => console.error("Partner listener error: ", error));
 
         return () => unsubPartners();
-    }, []);
+    }, [isPartner]);
 
     // Listener for notifications
     useEffect(() => {

@@ -24,12 +24,18 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
     const [result, setResult] = useState<GetLoanRecommendationsOutput | null>(null);
 
     const handleGetRecommendations = useCallback(async () => {
-        if (userContextLoading || partners.length === 0) {
-            setIsLoading(false);
-            return;
-        }
         setIsLoading(true);
         setError(null);
+
+        if (userContextLoading) {
+            return;
+        }
+
+        if (partners.length === 0) {
+            setIsLoading(false);
+            setResult(null); // Clear previous results if any
+            return;
+        }
 
         const allLoanProducts = partners.flatMap(p => 
             p.products.map(prod => ({
@@ -63,10 +69,8 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
     }, [score, partners, userContextLoading]);
 
     useEffect(() => {
-        if(!userContextLoading) {
-            handleGetRecommendations();
-        }
-    }, [handleGetRecommendations, score, userContextLoading]);
+        handleGetRecommendations();
+    }, [handleGetRecommendations, score]);
 
     const recommendedLoans = result?.recommendations?.filter(r => r.isRecommended) || [];
     const otherLoans = result?.recommendations?.filter(r => !r.isRecommended) || [];
@@ -102,7 +106,7 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                 )}
                 {!showLoading && !error && (
                     <div className="space-y-4">
-                        {!partners || partners.length === 0 && (
+                        {(partners.length === 0) && (
                              <Alert>
                                 <Lightbulb className="h-4 w-4" />
                                 <AlertTitle>No Partners Available</AlertTitle>
