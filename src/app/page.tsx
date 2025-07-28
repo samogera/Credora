@@ -18,9 +18,6 @@ export default function LandingPage() {
           <Button variant="ghost" asChild className="hidden sm:inline-flex">
             <Link href="/login-partner">Partner Login</Link>
           </Button>
-          <Button asChild>
-            <Link href="/signup-partner">Become a Partner</Link>
-          </Button>
         </nav>
       </header>
       <main className="flex-1">
@@ -92,9 +89,6 @@ export default function LandingPage() {
                 <Button variant="link" asChild className="p-0 h-auto font-medium text-primary hover:underline">
                     <Link href="/login-partner">Partner Login</Link>
                 </Button>
-                 <Button variant="link" asChild className="p-0 h-auto font-medium text-primary hover:underline">
-                    <Link href="/signup-partner">Become a Partner</Link>
-                 </Button>
             </div>
         </div>
       </footer>
