@@ -1,11 +1,10 @@
 
-
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Wallet, FileText, Phone, Upload, Link as LinkIcon, CheckCircle } from "lucide-react";
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { UserContext } from "@/context/user-context";
 import { WalletDialog } from "./wallet-dialog";
 
@@ -14,10 +13,13 @@ export function DataSources() {
   const [isWalletConnected, setIsWalletConnected] = useState(!!score);
   const [isWalletDialogOpen, setIsWalletDialogOpen] = useState(false);
 
+  useEffect(() => {
+    setIsWalletConnected(!!score);
+  }, [score]);
+
   const handleConnectWallet = () => {
       // This will be called from the dialog upon successful connection
       connectWalletAndSetScore();
-      setIsWalletConnected(true);
       setIsWalletDialogOpen(false);
   }
 

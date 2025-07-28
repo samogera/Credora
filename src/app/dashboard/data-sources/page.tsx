@@ -21,7 +21,7 @@ export default function DataSourcesPage() {
                     <Terminal className="h-4 w-4" />
                     <AlertTitle>Your Score is Not Yet Calculated</AlertTitle>
                     <AlertDescription>
-                        Please connect at least one data source, like your Stellar wallet, to generate your initial Credora Score.
+                        Please connect at least one data source, like your Stellar wallet, to generate your initial Credora Score. This will unlock loan recommendations and allow you to apply with our partners.
                     </AlertDescription>
                 </Alert>
             )}

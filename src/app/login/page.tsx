@@ -15,7 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 
 export default function LoginPage() {
-  const { user, loading, emailLogin, googleLogin, isPartner } = useContext(UserContext);
+  const { user, loading, emailLogin, googleLogin, isPartner, score } = useContext(UserContext);
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,10 +26,15 @@ export default function LoginPage() {
         if (isPartner) {
             router.push('/dashboard/partner-admin');
         } else {
-            router.push('/dashboard');
+            // If user is not a partner, check if they have a score
+            if (score === null) {
+                router.push('/dashboard/data-sources');
+            } else {
+                router.push('/dashboard');
+            }
         }
     }
-  }, [user, loading, router, isPartner]);
+  }, [user, loading, router, isPartner, score]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -11,6 +11,8 @@ import { UserContext } from '@/context/user-context';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { Terminal } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 export default function Dashboard() {
   const { score, setScore } = useContext(UserContext);
@@ -25,7 +27,13 @@ export default function Dashboard() {
                         <CardDescription>Let's calculate your decentralized credit score.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <p className="text-muted-foreground">To get started, connect your first data source. Your Stellar wallet is a great place to begin.</p>
+                        <Alert>
+                            <Terminal className="h-4 w-4" />
+                            <AlertTitle>Action Required</AlertTitle>
+                            <AlertDescription>
+                                To get started, connect your first data source. Your Stellar wallet is a great place to begin and is required to unlock loan applications.
+                            </AlertDescription>
+                        </Alert>
                         <Button asChild>
                             <Link href="/dashboard/data-sources">Connect Data Source</Link>
                         </Button>

@@ -4,7 +4,7 @@
 import { createContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, auth } from '@/lib/firebase';
-import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, deleteUser } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -132,7 +132,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setIsPartner(false);
         setAvatarUrlState(null);
         setApplications([]);
-        // Do not clear partners list on logout, it's global data
         setNotifications([]);
         setLoanActivity([]);
         setPartnerProducts([]);
@@ -149,6 +148,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            clearState(); // Clear state on every auth change to prevent data leakage
             if (currentUser) {
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
                 const partnerDocSnap = await getDoc(partnerDocRef);
@@ -172,7 +172,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 }
                 setUser(currentUser);
             } else {
-                clearState();
+                setUser(null);
+                setIsPartner(false);
+                setPartner(null);
             }
             setAuthInitialized(true);
         });
@@ -193,7 +195,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             if (doc.exists()) {
                 const data = doc.data();
                 setAvatarUrlState(data.avatarUrl || user.photoURL || null);
-                setScore(data.score || null);
+                setScore(data.score === undefined ? null : data.score);
             }
         });
 
@@ -237,7 +239,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         if (!user || !isPartner || !partner) {
             setPartnerProducts([]);
-            if(!isPartner) { // Keep loan activity for user role
+            if(!isPartner) { 
                  setLoanActivity([]);
                  setApplications([]);
             }
@@ -335,7 +337,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const newScore = Math.floor(Math.random() * (850 - 550 + 1)) + 550;
         const userDocRef = doc(db, "users", user.uid);
         await updateDoc(userDocRef, { score: newScore });
-        setScore(newScore);
     }, [user, isPartner]);
     
     const setAvatarUrl = useCallback(async (url: string) => {
@@ -541,8 +542,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const logout = useCallback(async () => {
-        clearState();
         await signOut(auth);
+        clearState();
         router.push('/');
     }, [router]);
     
@@ -577,7 +578,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         loanActivity,
     }), [
         user, partner, isPartner, loading, logout, emailLogin, googleLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
-        score, setScore, connectWalletAndSetScore, avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus, userSignLoan,
+        score, connectWalletAndSetScore, avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus, userSignLoan,
         partners, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct,
         notifications, markNotificationsAsRead, loanActivity
     ]);
