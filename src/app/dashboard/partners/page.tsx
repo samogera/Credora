@@ -107,6 +107,12 @@ export default function PartnersPage() {
             </CardContent>
             </Card>
         ))}
+        {partners.length === 0 && (
+             <div className="md:col-span-2 lg:col-span-3 text-center py-16">
+                <p className="text-muted-foreground">No lending partners have registered yet.</p>
+                <p className="text-sm text-muted-foreground">Check back soon for loan opportunities.</p>
+            </div>
+        )}
         </div>
         <Dialog open={!!selectedLoan} onOpenChange={(isOpen) => !isOpen && setSelectedLoan(null)}>
             <DialogContent>
@@ -158,3 +164,5 @@ export default function PartnersPage() {
     </>
   );
 }
+
+    
