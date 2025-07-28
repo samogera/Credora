@@ -1,57 +1,135 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useContext, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wallet } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { User, KeyRound, Mail, Building } from "lucide-react";
 import { Logo } from "@/components/logo";
-import { WalletDialog } from "@/components/wallet-dialog";
-
+import { UserContext } from "@/context/user-context";
+import { useRouter } from "next/navigation";
+import { toast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
 
 export default function SignupPage() {
-  const [isWalletDialogOpen, setIsWalletDialogOpen] = useState(false);
+  const { user, loading, emailSignup, googleLogin } = useContext(UserContext);
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!loading && user) {
+        router.push('/dashboard');
+    }
+  }, [user, loading, router]);
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password || !displayName) {
+        toast({ variant: 'destructive', title: 'Missing fields', description: 'Please fill all fields.' });
+        return;
+    }
+    setIsSubmitting(true);
+    try {
+        await emailSignup(email, password, displayName);
+        toast({
+            title: "Account Created!",
+            description: "You are now being redirected to your dashboard.",
+        });
+        // The useEffect will handle the redirect
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Signup Failed',
+            description: error.message || 'Could not create your account. Please try again.'
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
+  }
+
+  const handleGoogleLogin = async () => {
+    setIsSubmitting(true);
+    try {
+        await googleLogin();
+    } catch(error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Login Failed',
+            description: error.message || 'Could not sign in with Google.'
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
+  }
+  
+  const isLoading = loading || isSubmitting;
 
   return (
-    <>
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="w-full max-w-md p-8 space-y-8">
-          <div className="text-center space-y-4">
-            <Link href="/">
-               <Logo className="justify-center" textSize="text-3xl" />
-            </Link>
-            <h1 className="text-2xl font-bold tracking-tight">Create your Account</h1>
-            <p className="text-muted-foreground">
-              Get started with decentralized credit scoring.
-            </p>
-          </div>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Sign Up</CardTitle>
-              <CardDescription>Connect a wallet to create your secure, decentralized identity.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Button className="w-full font-semibold" size="lg" onClick={() => setIsWalletDialogOpen(true)}>
-                  <Wallet className="mr-2 h-5 w-5" />
-                  Connect Wallet
-              </Button>
-            </CardContent>
-          </Card>
-          
-          <p className="text-center text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <Link
-              href="/login"
-              className="font-medium text-primary hover:underline"
-            >
-              Log In
-            </Link>
+    <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="w-full max-w-md p-8 space-y-8">
+        <div className="text-center space-y-4">
+          <Link href="/">
+             <Logo className="justify-center" textSize="text-3xl" />
+          </Link>
+          <h1 className="text-2xl font-bold tracking-tight">Create your Account</h1>
+          <p className="text-muted-foreground">
+            Get started with decentralized credit scoring.
           </p>
         </div>
+        
+        <Card>
+          <form onSubmit={handleSignup}>
+            <CardHeader>
+              <CardTitle>Sign Up</CardTitle>
+              <CardDescription>Enter your details to create an account.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                  <Label htmlFor="displayName" className="flex items-center gap-2"><User /> Full Name</Label>
+                  <Input id="displayName" placeholder="John Doe" required value={displayName} onChange={e => setDisplayName(e.target.value)} disabled={isLoading} />
+              </div>
+              <div className="space-y-2">
+                  <Label htmlFor="email" className="flex items-center gap-2"><Mail /> Email Address</Label>
+                  <Input id="email" type="email" placeholder="you@example.com" required value={email} onChange={e => setEmail(e.target.value)} disabled={isLoading} />
+              </div>
+              <div className="space-y-2">
+                  <Label htmlFor="password" className="flex items-center gap-2"><KeyRound /> Password</Label>
+                  <Input id="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} disabled={isLoading} />
+              </div>
+
+              <Button className="w-full font-semibold" type="submit" disabled={isLoading}>
+                 {isLoading ? "Creating account..." : "Create Account"}
+              </Button>
+
+              <div className="relative my-4">
+                    <Separator />
+                    <span className="absolute left-1/2 -translate-x-1/2 top-[-10px] bg-card px-2 text-xs text-muted-foreground">OR</span>
+              </div>
+
+              <Button variant="outline" className="w-full font-semibold" onClick={handleGoogleLogin} disabled={isLoading} type="button">
+                  <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 21.2 172.9 65.6l-63.5 63.5C330.7 99.8 291.9 80 248 80c-82.8 0-150.5 67.7-150.5 150.5S165.2 431.5 248 431.5c97.2 0 130.3-72.9 135.2-109.9H248v-85.3h236.1c2.3 12.7 3.9 26.9 3.9 41.4z"></path></svg>
+                  Sign up with Google
+              </Button>
+            </CardContent>
+          </form>
+        </Card>
+        
+        <p className="text-center text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <Link
+            href="/login"
+            className="font-medium text-primary hover:underline"
+          >
+            Log In
+          </Link>
+        </p>
       </div>
-      <WalletDialog open={isWalletDialogOpen} onOpenChange={setIsWalletDialogOpen} />
-    </>
+    </div>
   );
 }

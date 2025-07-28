@@ -10,36 +10,47 @@ import { toast } from "@/hooks/use-toast";
 import { UserContext } from "@/context/user-context";
 
 export function ApplicationStatus() {
-  const { applications } = useContext(UserContext);
+  const { applications, userSignLoan, user } = useContext(UserContext);
   const [signingId, setSigningId] = useState<string | null>(null);
 
-  const handleSign = (id: string) => {
-    setSigningId(id);
+  const handleSign = (appId: string) => {
+    setSigningId(appId);
     toast({
         title: "Executing Contract...",
         description: "Please wait while we finalize your loan agreement on the Soroban network.",
     })
-    setTimeout(() => {
-        // Logic to update the status would go here
+    
+    userSignLoan(appId).then(() => {
         toast({
             title: "Congratulations!",
             description: "Your loan has been approved and funds are being transferred.",
         })
         setSigningId(null);
-    }, 2500);
+    }).catch(error => {
+        console.error("Signing error:", error);
+        toast({
+            variant: "destructive",
+            title: "Signing Failed",
+            description: "Could not finalize the loan. Please try again.",
+        })
+        setSigningId(null);
+    })
   }
 
   const getStatusVariant = (status: string) => {
     if (status === 'Approved') return 'default';
     if (status === 'Denied') return 'destructive';
+    if (status === 'Signed') return 'default';
     return 'secondary';
   }
 
   const getStatusColor = (status: string) => {
-    if (status === 'Approved') return 'bg-green-500 hover:bg-green-600';
+    if (status === 'Approved' || status === 'Signed') return 'bg-green-500 hover:bg-green-600';
     if (status === 'Denied') return 'bg-red-500 hover:bg-red-600';
     return '';
   }
+  
+  const userApplications = applications.filter(app => app.userId === user?.uid);
 
   return (
     <Card className="shadow-lg">
@@ -48,9 +59,9 @@ export function ApplicationStatus() {
         <CardDescription>Track the status of your recent loan applications.</CardDescription>
       </CardHeader>
       <CardContent>
-        {applications.length > 0 ? (
+        {userApplications.length > 0 ? (
           <ul className="space-y-4">
-            {applications.map((app) => (
+            {userApplications.map((app) => (
               <li key={app.id} className="flex items-center justify-between">
                 <div>
                   <p className="font-semibold">{app.loan.name}</p>

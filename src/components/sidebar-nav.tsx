@@ -18,7 +18,8 @@ import {
   LogOut,
   BarChart3,
   Settings,
-  Bell
+  Bell,
+  Landmark
 } from "lucide-react"
 import { Button } from "./ui/button"
 import { Logo } from './logo'
@@ -27,6 +28,7 @@ const userMenuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/dashboard/data-sources', label: 'Data Sources', icon: Database },
     { href: '/dashboard/partners', label: 'Partners', icon: Users },
+    { href: '/dashboard/my-loans', label: 'My Loans', icon: Landmark },
     { href: '/dashboard/notifications', label: 'Notifications', icon: Bell },
 ]
 
