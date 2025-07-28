@@ -24,7 +24,7 @@ export const Logo = ({
       className={cn("w-10 h-10", iconClassName)}
     />
     {showText && (
-      <span className={cn("font-bold text-foreground", textSize)}>
+      <span className={cn("font-code font-bold text-foreground", textSize)}>
         Credora
       </span>
     )}

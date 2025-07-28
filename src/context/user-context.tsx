@@ -175,6 +175,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // Auth state listener - determines user and their role
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            setLoading(true);
             if (currentUser) {
                 setUser(currentUser);
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
@@ -196,8 +197,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                        userDocSnap = await getDoc(userDocRef);
                     }
                     setIsPartner(false);
-                    setAvatarUrlState(userDocSnap.data()?.avatarUrl || null);
-                    setScoreState(userDocSnap.data()?.score || null);
+                    const userData = userDocSnap.data();
+                    setAvatarUrlState(userData?.avatarUrl || null);
+                    setScoreState(userData?.score === undefined ? null : userData.score);
                 }
             } else {
                 clearState();
@@ -210,7 +212,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     // Data listeners setup
     useEffect(() => {
-        if (loading || isPartner === null || !user) return;
+        if (loading || isPartner === null || !user) {
+            if(!loading && !user) setDataLoading(false);
+            return;
+        }
         
         setDataLoading(true);
         const unsubs: (() => void)[] = [];
@@ -351,10 +356,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Avatar updated!" });
     }, [user, isPartner]);
 
-    const addNotification = useCallback(async (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
-        await addDoc(collection(db, 'notifications'), { ...notification, read: false, timestamp: serverTimestamp() });
-    }, []);
-
     const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score' | 'partnerId'>) => {
         if (!user || score === null) throw new Error("User not logged in or score not calculated.");
         
@@ -365,7 +366,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             ...app,
             score,
             userId: user.uid,
-            partnerId: targetPartner.id, // Correctly set the partner's ID
+            partnerId: targetPartner.id,
             user: {
                 displayName: user.displayName || 'Anonymous',
                 avatarUrl: avatarUrl,
@@ -403,19 +404,36 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, [user, score, partners, avatarUrl, walletAddress]);
     
      const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
-        const appRef = doc(db, "applications", appId);
+        const appRef = doc(collection(db, 'applications'), appId);
         const appDoc = await getDoc(appRef);
-        if (!appDoc.exists()) throw new Error("Application not found");
+        
+        let appToUpdate: Application;
+        let partnerAppRef: any;
 
-        const appToUpdate = { id: appDoc.id, ...appDoc.data() } as Application;
+        if (appDoc.exists()) {
+             appToUpdate = { id: appDoc.id, ...appDoc.data() } as Application;
+             partnerAppRef = doc(db, "partners", appToUpdate.partnerId, "applications", appId);
+        } else {
+            // If it doesn't exist in the root, it might be a partner trying to update it.
+            // We need to find which application it is by searching. This is not ideal, but necessary with current structure if root doc is deleted or inaccessible.
+            // A better structure would be to always have the root doc.
+            // For now, let's assume partner is logged in.
+            if (!partner) throw new Error("Partner not found");
+            const partnerAppDocRef = doc(db, "partners", partner.id, "applications", appId);
+            const partnerAppDoc = await getDoc(partnerAppDocRef);
+            if (!partnerAppDoc.exists()) throw new Error("Application not found in partner collection either.");
+            appToUpdate = {id: partnerAppDoc.id, ...partnerAppDoc.data()} as Application;
+            partnerAppRef = partnerAppDocRef;
+        }
         
         const batch = writeBatch(db);
 
-        // 1. Update the user's application
-        batch.update(appRef, { status });
+        // 1. Update the user's application if it exists
+        if(appDoc.exists()) {
+            batch.update(appRef, { status });
+        }
 
         // 2. Update the partner's copy
-        const partnerAppRef = doc(db, "partners", appToUpdate.partnerId, "applications", appId);
         batch.update(partnerAppRef, { status });
         
         // 3. Create notification for user
@@ -456,7 +474,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         
         await batch.commit();
 
-    }, []);
+    }, [partner]);
 
     const userSignLoan = useCallback(async (appId: string) => {
         const appRef = doc(db, "applications", appId);
