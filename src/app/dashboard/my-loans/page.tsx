@@ -173,7 +173,7 @@ export default function MyLoansPage() {
                             <Input 
                                 id="repayment-amount"
                                 type="number"
-                                value={repaymentAmount}
+                                value={repaymentAmount || 0}
                                 onChange={(e) => setRepaymentAmount(parseFloat(e.target.value))}
                                 max={selectedLoan ? selectedLoan.amount + (selectedLoan.interestAccrued || 0) - (selectedLoan.repaid || 0) : 0}
                                 min="0"
