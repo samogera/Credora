@@ -49,7 +49,7 @@ export type LoanActivityItem = {
 export type Application = {
     id:string;
     userId: string;
-    user: {
+    user?: {
         displayName: string;
         avatarUrl?: string | null;
         walletAddress?: string;
@@ -465,7 +465,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 batch.set(loanActivityRef, {...loanActivityData, createdAt: serverTimestamp()});
                  toast({
                     title: "Mock Loan Created!",
-                    description: `Loan created on mock Soroban. TX: ${txHash}`
+                    description: `The user has been notified. Funds will be disbursed once they sign the contract.`
                 });
 
             } catch (e: any) {
@@ -592,7 +592,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         user, partner, isPartner, loading, dataLoading, logout, emailLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
         score, connectWalletAndSetScore, avatarUrl, setAvatarUrl, walletAddress, applications, addApplication, updateApplicationStatus, userSignLoan,
         partners, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct,
-        notifications, markNotificationsAsRead, loanActivity, refreshLoanActivity,
+        notifications, markNotificationsAsRead, loanActivity, refreshLoanActivity
     ]);
 
     return (
