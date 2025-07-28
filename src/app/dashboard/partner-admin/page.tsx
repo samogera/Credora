@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, Info, Bot, MoreHorizontal, User, XCircle, Wallet } from 'lucide-react';
+import { CheckCircle, Info, Bot, MoreHorizontal, User, XCircle, Wallet, ShieldCheck } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { PartnerPortfolio } from '@/components/partner-portfolio';
 import { LoanActivity } from '@/components/loan-activity';
@@ -54,12 +54,33 @@ export default function PartnerAdminPage() {
         if (!app.aiExplanation) {
           handleExplainRisk(app);
         }
-        // Simulate real-time score verification from Soroban
+    };
+
+    const handleVerifyOnSoroban = async (walletAddress: string) => {
         toast({
             title: "Verifying Score...",
-            description: `Fetching latest score for ${app.user?.displayName || 'user'} from the Soroban contract.`
-        })
-    };
+            description: `Fetching latest score for wallet ${walletAddress.substring(0, 8)}... from the Soroban contract.`
+        });
+        // Mock function (replace later with real Soroban SDK)
+        const getScore = async (wallet: string) => {
+            console.log(`Getting score for ${wallet}`);
+            await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
+            return { score: 720, risk: "B", onChain: true, tx: `0x${[...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('')}` }; // Simulate on-chain fetch
+        };
+
+        try {
+            const sorobanResult = await getScore(walletAddress);
+             toast({
+                title: "Verification Complete!",
+                description: `On-chain score: ${sorobanResult.score}. Tx: ${sorobanResult.tx.substring(0,12)}...`
+            });
+             if(selectedApplication){
+                setSelectedApplication({...selectedApplication, score: sorobanResult.score });
+            }
+        } catch(e) {
+            toast({ variant: 'destructive', title: "Verification Failed", description: "Could not connect to Soroban RPC." });
+        }
+    }
 
     const handleExplainRisk = async (appToExplain: Application) => {
         if (!appToExplain) return;
@@ -77,7 +98,6 @@ export default function PartnerAdminPage() {
             const result = await explainRiskFactors(input);
             const finalApp = { ...updatedApp, aiExplanation: result, isExplaining: false };
             setSelectedApplication(finalApp);
-            // Optionally, you could update the main application list in context if you want this to persist across dialog openings
         } catch (error) {
             console.error("Error explaining risk factors:", error);
             toast({ variant: 'destructive', title: "AI Error", description: "Could not fetch AI risk explanation." });
@@ -184,11 +204,15 @@ export default function PartnerAdminPage() {
                     </DialogHeader>
                     <div className="space-y-6 py-4">
                         <div className="grid grid-cols-2 gap-4 text-center">
-                            <Card className="pt-6">
+                            <Card className="pt-6 relative">
                                 <CardContent>
                                     <p className="text-sm text-muted-foreground">Credora Score (On-Chain)</p>
                                     <p className={`text-5xl font-bold ${getScoreColor(selectedApplication?.score || 0)}`}>{selectedApplication?.score}</p>
                                 </CardContent>
+                                <Button size="sm" className="absolute top-2 right-2 h-7" variant="secondary" onClick={() => handleVerifyOnSoroban(selectedApplication?.user?.walletAddress || '')} disabled={!selectedApplication?.user?.walletAddress}>
+                                    <ShieldCheck className="mr-2 h-4 w-4" />
+                                    Verify
+                                </Button>
                             </Card>
                              <Card className="pt-6">
                                 <CardContent>

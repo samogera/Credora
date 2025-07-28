@@ -296,8 +296,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 }
             } else {
                 if (!currentPath.startsWith('/dashboard') || currentPath.startsWith('/dashboard/partner-admin')) {
-                    const hasConnectedWallet = !!score;
-                    router.push(hasConnectedWallet ? '/dashboard' : '/dashboard/data-sources');
+                    router.push(score === null ? '/dashboard/connect-wallet' : '/dashboard');
                 }
             }
        }
@@ -326,6 +325,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const randomKey = Array.from({ length: 55 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
         const newWalletAddress = 'G' + randomKey;
         await setScore(newScore, newWalletAddress);
+        toast({
+          title: "Soroban Auth",
+          description: "Please sign the SEP-10 transaction to authenticate your wallet.",
+        });
     }, [user, isPartner]);
     
     const setAvatarUrl = useCallback(async (url: string) => {
@@ -553,5 +556,3 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
-
-    

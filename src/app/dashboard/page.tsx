@@ -35,7 +35,7 @@ export default function Dashboard() {
                             </AlertDescription>
                         </Alert>
                         <Button asChild>
-                            <Link href="/dashboard/data-sources">Connect Data Source</Link>
+                            <Link href="/dashboard/connect-wallet">Connect Wallet</Link>
                         </Button>
                     </CardContent>
                 </Card>
