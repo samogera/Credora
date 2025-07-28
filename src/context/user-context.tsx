@@ -3,13 +3,13 @@
 "use client";
 
 import { createContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
-import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
+import { ExplainRiskFactorsOutput, explainRiskFactors } from '@/ai/flows/explain-risk-factors';
 import { db, auth } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
 import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, deleteUser } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { createLoan, getLoan, repayLoan } from '@/lib/soroban-mock';
+import { createLoan, getLoan, repayLoan, getScore } from '@/lib/soroban-mock';
 
 // Types
 export type LoanProduct = {
@@ -68,7 +68,6 @@ export type Application = {
     amount: number;
     status: 'Pending' | 'Approved' | 'Denied' | 'Signed';
     aiExplanation?: ExplainRiskFactorsOutput | null;
-    isExplaining?: boolean;
     createdAt?: any;
     partnerId: string;
 };
@@ -104,7 +103,7 @@ interface UserContextType {
     setAvatarUrl: (url: string) => void;
     walletAddress: string | null;
     applications: Application[];
-    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score' | 'partnerId' >) => Promise<void>;
+    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score' | 'partnerId' | 'aiExplanation'>) => Promise<void>;
     updateApplicationStatus: (appId: string, status: 'Approved' | 'Denied') => Promise<void>;
     userSignLoan: (appId: string) => Promise<void>;
     partners: Partner[];
@@ -216,22 +215,25 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         
         const updatedLoanActivityPromises = snapshot.docs.map(async (doc) => {
             const loanData = doc.data() as Omit<LoanActivityItem, 'id' | 'createdAt'>;
-            
             const loanIdNum = loanData.sorobanLoanId;
             
             if (typeof loanIdNum !== 'number' || isNaN(loanIdNum) || loanIdNum <= 0) {
                  return { ...loanData, id: doc.id, createdAt: loanData.createdAt?.toDate() } as LoanActivityItem;
             }
             
-            const onChainLoan = await getLoan(loanIdNum);
-            
-            return {
-                ...loanData,
-                id: doc.id,
-                repaid: onChainLoan?.repaid ?? loanData.repaid,
-                status: onChainLoan?.status ?? loanData.status,
-                createdAt: loanData.createdAt?.toDate()
-            } as LoanActivityItem;
+            try {
+                const onChainLoan = await getLoan(loanIdNum);
+                return {
+                    ...loanData,
+                    id: doc.id,
+                    repaid: onChainLoan?.repaid ?? loanData.repaid,
+                    status: onChainLoan?.status ?? loanData.status,
+                    createdAt: loanData.createdAt?.toDate()
+                } as LoanActivityItem;
+            } catch (e) {
+                // If getLoan fails (e.g. loan not found on-chain yet), return the db version.
+                return { ...loanData, id: doc.id, createdAt: loanData.createdAt?.toDate() } as LoanActivityItem;
+            }
         });
         
         const updatedLoanActivity = await Promise.all(updatedLoanActivityPromises);
@@ -358,13 +360,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const connectWalletAndSetScore = useCallback(async () => {
         if (!user || isPartner) return;
-        const newScore = Math.floor(Math.random() * (850 - 550 + 1)) + 550;
+        // Use a fixed mock wallet for consistency
         const newWalletAddress = 'GUSERWALLETMOCK'; 
-        await setScore(newScore, newWalletAddress);
-        toast({
-          title: "Soroban Auth",
-          description: "Please sign the SEP-10 transaction to authenticate your wallet.",
-        });
+        try {
+            const fetchedScore = await getScore(newWalletAddress);
+            await setScore(fetchedScore.value, newWalletAddress);
+            toast({
+              title: "Soroban Auth",
+              description: "Please sign the SEP-10 transaction to authenticate your wallet.",
+            });
+        } catch (e: any) {
+            console.error("Error fetching mock score:", e);
+            const randomScore = Math.floor(Math.random() * (850 - 550 + 1)) + 550;
+            await setScore(randomScore, newWalletAddress);
+        }
     }, [user, isPartner]);
     
     const setAvatarUrl = useCallback(async (url: string) => {
@@ -378,15 +387,18 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Avatar updated!" });
     }, [user, isPartner]);
 
-    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score' | 'partnerId' >) => {
-        if (!user || score === null) throw new Error("User not logged in or score not calculated.");
+    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score' | 'partnerId' | 'aiExplanation' >) => {
+        if (!user || !walletAddress) throw new Error("User not logged in or wallet not connected.");
         
         const targetPartner = partners.find(p => p.name === app.loan.partnerName);
         if (!targetPartner) throw new Error("Lending partner not found.");
-            
-        const newApp: Omit<Application, 'id' | 'aiExplanation' | 'isExplaining'> = {
+        
+        // Fetch latest score to ensure data integrity
+        const latestScore = await getScore(walletAddress);
+
+        const newApp: Omit<Application, 'id' | 'aiExplanation'> = {
             ...app,
-            score,
+            score: latestScore.value,
             userId: user.uid,
             loan: {
                 ...app.loan,
@@ -396,9 +408,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             createdAt: serverTimestamp()
         };
         
-        const batch = writeBatch(db);
         const appRef = doc(collection(db, "applications"));
-        batch.set(appRef, newApp);
+        
+        // Proactively get AI explanation
+        const aiExplanation = await explainRiskFactors({
+            score: latestScore.value,
+            stellarActivity: "Frequent transactions, holds various assets.",
+            offChainSignals: "Consistent utility payments on time."
+        });
+
+        const batch = writeBatch(db);
+        batch.set(appRef, {...newApp, aiExplanation});
 
         const notificationData = {
             for: 'partner' as const,
@@ -415,7 +435,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         await batch.commit();
 
-    }, [user, score, partners]);
+    }, [user, partners, walletAddress]);
     
     const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
         if(!auth.currentUser || !isPartner) {
@@ -455,7 +475,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, [isPartner]);
 
     const userSignLoan = useCallback(async (appId: string) => {
-        if (!user || isPartner) return;
+        if (!user || isPartner || !walletAddress) return;
         
         const appRef = doc(db, "applications", appId);
         const appDoc = await getDoc(appRef);
@@ -468,7 +488,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         try {
             const txHash = await createLoan(
                 appData.partnerId, 
-                appData.user?.walletAddress || user.uid, 
+                walletAddress, 
                 appData.amount,
                 appData.loan.interestRate,
                 appData.loan.term
@@ -518,7 +538,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             });
             throw e; 
         }
-    }, [user, isPartner, refreshLoanActivity]);
+    }, [user, isPartner, walletAddress, refreshLoanActivity]);
     
     const updatePartnerProfile = useCallback(async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
         if (!user || !isPartner) return;

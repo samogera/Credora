@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,6 @@ import { CheckCircle, Info, Bot, MoreHorizontal, User, XCircle, Wallet, ShieldCh
 import { toast } from '@/hooks/use-toast';
 import { PartnerPortfolio } from '@/components/partner-portfolio';
 import { LoanActivity } from '@/components/loan-activity';
-import { explainRiskFactors, ExplainRiskFactorsInput, ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -26,7 +25,6 @@ import { UserContext, Application } from '@/context/user-context';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-// TODO: REPLACE WITH REAL SOROBAN CALL
 import { getScore } from '@/lib/soroban-mock';
 
 export default function PartnerAdminPage() {
@@ -52,9 +50,6 @@ export default function PartnerAdminPage() {
     const handleViewProfile = (app: Application) => {
         setSelectedApplication(app);
         setIsProfileOpen(true);
-        if (!app.aiExplanation) {
-          handleExplainRisk(app);
-        }
     };
 
     const handleVerifyOnSoroban = async (walletAddress: string) => {
@@ -63,7 +58,6 @@ export default function PartnerAdminPage() {
             description: `Fetching latest score for wallet ${walletAddress.substring(0, 8)}... from the mock Soroban contract.`
         });
         
-        // TODO: REPLACE WITH REAL SOROBAN CALL
         try {
             const sorobanResult = await getScore(walletAddress);
              toast({
@@ -79,30 +73,6 @@ export default function PartnerAdminPage() {
             toast({ variant: 'destructive', title: "Verification Failed", description: e.message || "Could not connect to Soroban RPC." });
         }
     }
-
-    const handleExplainRisk = async (appToExplain: Application) => {
-        if (!appToExplain) return;
-
-        const updatedApp = { ...appToExplain, isExplaining: true };
-        setSelectedApplication(updatedApp);
-        
-        const input: ExplainRiskFactorsInput = {
-            score: appToExplain.score,
-            stellarActivity: "Frequent transactions, holds various assets.",
-            offChainSignals: "Consistent utility payments on time."
-        };
-
-        try {
-            const result = await explainRiskFactors(input);
-            const finalApp = { ...updatedApp, aiExplanation: result, isExplaining: false };
-            setSelectedApplication(finalApp);
-        } catch (error) {
-            console.error("Error explaining risk factors:", error);
-            toast({ variant: 'destructive', title: "AI Error", description: "Could not fetch AI risk explanation." });
-            const errorApp = { ...updatedApp, isExplaining: false };
-            setSelectedApplication(errorApp);
-        }
-    };
 
     const getScoreColor = (score: number) => {
         if (score >= 750) return "text-green-500";
@@ -226,14 +196,11 @@ export default function PartnerAdminPage() {
                              <CardHeader className="pb-2">
                                  <CardTitle className="text-base flex items-center justify-between">
                                     <span>AI Risk Explanation</span>
-                                     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => selectedApplication && handleExplainRisk(selectedApplication)} disabled={selectedApplication?.isExplaining}>
-                                        <Bot className={`h-4 w-4 ${selectedApplication?.isExplaining ? 'animate-pulse' : ''}`} />
-                                    </Button>
+                                    <Bot className="h-5 w-5 text-primary" />
                                  </CardTitle>
                              </CardHeader>
                             <CardContent className="space-y-4">
-                                {selectedApplication?.isExplaining ? <Skeleton className="h-16 w-full" /> : 
-                                selectedApplication?.aiExplanation ? (
+                                {selectedApplication?.aiExplanation ? (
                                     <Alert className="text-sm">
                                         <Info className="h-4 w-4" />
                                         <AlertDescription>
@@ -241,7 +208,7 @@ export default function PartnerAdminPage() {
                                         </AlertDescription>
                                     </Alert>
                                 ) :
-                                 <p className="text-sm text-muted-foreground text-center py-2">Click the bot icon to generate an AI explanation.</p>
+                                 <p className="text-sm text-muted-foreground text-center py-2">AI explanation is being generated...</p>
                                 }
                             </CardContent>
                         </Card>
