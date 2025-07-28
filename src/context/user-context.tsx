@@ -37,6 +37,8 @@ export type LoanActivityItem = {
     interestAccrued?: number;
     status: 'Active' | 'Paid Off' | 'Delinquent';
     createdAt: Date;
+    partnerId: string;
+    userId: string;
 };
 
 export type Application = {
@@ -82,7 +84,7 @@ interface UserContextType {
     avatarUrl: string | null;
     setAvatarUrl: (url: string) => void;
     applications: Application[];
-    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt'>) => Promise<void>;
+    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'userAvatar'>) => Promise<void>;
     updateApplicationStatus: (id: string, status: 'Approved' | 'Denied') => void;
     partners: Partner[];
     updatePartnerProfile: (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => void;
@@ -138,7 +140,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, []);
     
     useEffect(() => {
-        if (!user || isPartner) return;
+        if (!user || isPartner) {
+            setApplications([]);
+            return;
+        };
 
         const unsubUser = onSnapshot(doc(db, "users", user.uid), (doc) => {
             if (doc.exists()) {
@@ -163,7 +168,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, [user, isPartner]);
 
     useEffect(() => {
-        if (!partner || !isPartner) return;
+        if (!partner || !isPartner) {
+            setPartnerProducts([]);
+            setLoanActivity([]);
+            setApplications([]);
+            return;
+        }
 
         const unsubPartnerProducts = onSnapshot(collection(db, "partners", partner.id, "products"), (snapshot) => {
             setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
@@ -223,14 +233,24 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            setNotifications([]);
+            return;
+        }
         const relevantId = isPartner ? partner?.id : user.uid;
         if (!relevantId) return;
 
         const notifsQuery = query(collection(db, "notifications"), where("userId", "==", relevantId));
         const unsubNotifs = onSnapshot(notifsQuery, (snapshot) => {
             const allNotifs = snapshot.docs
-                .map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp.toDate() } as Notification))
+                .map(d => {
+                    const data = d.data();
+                    return ({ 
+                        id: d.id, 
+                        ...data, 
+                        timestamp: data.timestamp?.toDate() || new Date() 
+                    } as Notification)
+                })
                 .sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
             setNotifications(allNotifs);
         }, (error) => console.error("Notifications listener error: ", error));
@@ -245,14 +265,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setAvatarUrlState(url);
     }, [user]);
 
-    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt'>) => {
+    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'userAvatar'>) => {
         if (!user) throw new Error("User not logged in.");
         
-        const userDocSnap = await getDoc(doc(db, 'users', user.uid));
-        if (!userDocSnap.exists()) await setDoc(doc(db, 'users', user.uid), { displayName: `User-${user.uid.substring(0,5)}`, avatarUrl: null, createdAt: serverTimestamp()});
+        const userDocRef = doc(db, 'users', user.uid);
+        let userDocSnap = await getDoc(userDocRef);
+        if (!userDocSnap.exists()) {
+            await setDoc(userDocRef, { displayName: `User-${user.uid.substring(0,5)}`, avatarUrl: null, createdAt: serverTimestamp()});
+            userDocSnap = await getDoc(userDocRef);
+        }
 
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        const userData = userDoc.data();
+        const userData = userDocSnap.data();
         
         const targetPartner = partners.find(p => p.name === app.loan.partnerName);
         if (!targetPartner) throw new Error("Lending partner not found.");
@@ -260,10 +283,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const newApp = {
             ...app,
             userId: user.uid,
-            user: {
-                displayName: userData?.displayName || `User #${user.uid.substring(0,4)}`,
-                avatarUrl: userData?.avatarUrl || null
-            },
             loan: { ...app.loan, partnerId: targetPartner.id },
             createdAt: serverTimestamp()
         };
@@ -279,13 +298,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             if (!appToUpdate) return;
             await addDoc(collection(db, 'loanActivity'), {
                 user: { displayName: appToUpdate.user.displayName },
+                userId: appToUpdate.userId,
+                partnerId: appToUpdate.loan.partnerId,
                 amount: appToUpdate.amount,
                 repaid: 0,
                 interestAccrued: 0,
                 status: 'Active',
-                createdAt: new Date(),
-                partnerId: appToUpdate.loan.partnerId,
-                userId: appToUpdate.userId,
+                createdAt: serverTimestamp(),
             });
         }
     }, [applications]);
