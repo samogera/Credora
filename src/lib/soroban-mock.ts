@@ -42,7 +42,6 @@ export const initMockSoroban = () => {
   if (mockDb.scores.size === 0) { // Prevent re-initialization on hot-reloads
     mockDb.scores.set('GABC...', { value: 720, riskBand: 'B', lastUpdated: new Date().toISOString() });
     mockDb.scores.set('GUSERWALLETMOCK', { value: 720, riskBand: 'B', lastUpdated: new Date().toISOString() });
-    // No initial loans, they will be created dynamically
   }
 };
 
@@ -104,15 +103,16 @@ export const repayLoan = async (loanId: number, amount: number): Promise<TxHash>
   if (!loan) throw new Error('Loan not found');
 
   const rate = loan.interestRate / 100 / 12; // monthly rate
+  const principal = loan.amount;
   const totalToRepay = loan.term > 0 
-    ? (loan.amount * rate * Math.pow(1 + rate, loan.term)) / (Math.pow(1 + rate, loan.term) - 1) * loan.term 
-    : loan.amount;
+    ? (principal * rate * (Math.pow(1 + rate, loan.term))) / (Math.pow(1 + rate, loan.term) - 1) * loan.term
+    : principal;
   
   loan.repaid += amount;
   
   if (loan.repaid >= totalToRepay) {
     loan.status = 'repaid';
-    loan.repaid = totalToRepay; // Cap repayment at total, handles overpayment case
+    loan.repaid = totalToRepay; 
   }
   
   return `mock-tx-hash-repay-${loanId}`;

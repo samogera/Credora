@@ -19,7 +19,6 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-// TODO: REPLACE WITH REAL SOROBAN CALL
 import { repayLoan } from '@/lib/soroban-mock';
 
 export default function MyLoansPage() {
@@ -34,7 +33,7 @@ export default function MyLoansPage() {
         const interest = loan.interestAccrued || 0;
         const repaid = loan.repaid || 0;
         const remaining = loan.amount + interest - repaid;
-        setRepaymentAmount(remaining);
+        setRepaymentAmount(remaining > 0 ? remaining : 0);
         setSelectedLoan(loan);
     }
 
@@ -59,10 +58,8 @@ export default function MyLoansPage() {
         });
 
         try {
-            // TODO: REPLACE WITH REAL SOROBAN CALL
-            const txHash = await repayLoan(loanIdToRepay, repaymentAmount);
+            const txHash = await repayLoan(loanIdToRepay, Number(repaymentAmount));
 
-            // Refresh the loan state from the mock DB to show progress
             await refreshLoanActivity();
 
             setIsRepaying(false);
@@ -181,7 +178,7 @@ export default function MyLoansPage() {
                                 id="repayment-amount"
                                 type="number"
                                 value={repaymentAmount || ''}
-                                onChange={(e) => setRepaymentAmount(parseFloat(e.target.value))}
+                                onChange={(e) => setRepaymentAmount(parseFloat(e.target.value) || 0)}
                                 max={selectedLoan ? selectedLoan.amount + (selectedLoan.interestAccrued || 0) - (selectedLoan.repaid || 0) : 0}
                                 min="0"
                             />

@@ -9,7 +9,6 @@ import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, 
 import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, deleteUser } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-// TODO: REPLACE WITH REAL SOROBAN CALL
 import { createLoan, getLoan, repayLoan } from '@/lib/soroban-mock';
 
 // Types
@@ -218,14 +217,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const updatedLoanActivityPromises = snapshot.docs.map(async (doc) => {
             const loanData = doc.data() as Omit<LoanActivityItem, 'id' | 'createdAt'>;
             
-            // Ensure sorobanLoanId is a clean number string before parsing
             const loanIdNum = parseInt(String(loanData.sorobanLoanId || '0'), 10);
             
-            if (isNaN(loanIdNum) || loanIdNum === 0) {
+            if (isNaN(loanIdNum) || loanIdNum <= 0) {
                  return { ...loanData, id: doc.id, createdAt: loanData.createdAt?.toDate() } as LoanActivityItem;
             }
             
-            // TODO: REPLACE WITH REAL SOROBAN CALL
             const onChainLoan = await getLoan(loanIdNum);
             
             return {
@@ -298,7 +295,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             unsubs.push(onSnapshot(collection(db, "partners", user.uid, "products"), (snapshot) => {
                 setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
             }));
-            const qPartnerApps = query(collection(db, "applications"), where("loan.partnerId", "==", user.uid));
+            const qPartnerApps = query(collection(db, "applications"), where("partnerId", "==", user.uid));
             unsubs.push(onSnapshot(qPartnerApps, (snapshot) => {
                 const appsDataPromises = snapshot.docs.map(async (d) => {
                     const app = {...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application;
@@ -431,7 +428,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         if (!appDoc.exists()) throw new Error("Application not found.");
         const appToUpdate = appDoc.data() as Application;
 
-        if(appToUpdate.loan.partnerId !== auth.currentUser.uid) {
+        if(appToUpdate.partnerId !== auth.currentUser.uid) {
              toast({ variant: 'destructive', title: "Permission Denied" });
              return;
         }
@@ -469,7 +466,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const appData = appDoc.data() as Application;
         
         try {
-            // TODO: REPLACE WITH REAL SOROBAN CALL
             const txHash = await createLoan(
                 appData.loan.partnerId, 
                 appData.user?.walletAddress || '', 
@@ -486,21 +482,22 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
             const rate = appData.loan.interestRate / 100 / 12;
             const term = appData.loan.term;
-            const monthlyPayment = term > 0 ? (appData.amount * rate * Math.pow(1 + rate, term)) / (Math.pow(1 + rate, term) - 1) : appData.amount;
-            const totalRepayment = term > 0 ? monthlyPayment * term : appData.amount;
-            const totalInterest = totalRepayment - appData.amount;
+            const principal = appData.amount;
+            const monthlyPayment = term > 0 ? (principal * rate * (Math.pow(1 + rate, term))) / (Math.pow(1 + rate, term) - 1) : principal;
+            const totalRepayment = term > 0 ? monthlyPayment * term : principal;
+            const totalInterest = totalRepayment - principal;
 
             const loanActivityData: Omit<LoanActivityItem, 'id' | 'createdAt'> = {
                 sorobanLoanId: String(loanId),
-                user: { displayName: appData.user?.displayName || 'Unknown User' },
+                user: { displayName: appData.user?.displayName || user.displayName || 'Unknown User' },
                 userId: appData.userId,
-                partnerId: appData.loan.partnerId,
+                partnerId: appData.partnerId,
                 partnerName: appData.loan.partnerName,
-                amount: appData.amount,
+                amount: principal,
                 repaid: 0,
                 interestAccrued: totalInterest,
                 status: 'Active',
-                term: appData.loan.term,
+                term: term,
                 interestRate: appData.loan.interestRate
             };
 
@@ -520,7 +517,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 description: e.message || "Could not create loan on the mock Soroban network.",
                 variant: 'destructive',
             });
-            throw e; // re-throw to be caught in component
+            throw e; 
         }
     }, [user, isPartner, refreshLoanActivity]);
     
