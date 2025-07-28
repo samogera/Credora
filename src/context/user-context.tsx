@@ -138,6 +138,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setPartnerProducts([]);
         setScoreState(null);
     }, []);
+
+    const logout = useCallback(async () => {
+        clearState();
+        await signOut(auth);
+        router.push('/login');
+    }, [router, clearState]);
     
     const setScore = async (score: number | null) => {
         if (!user || isPartner) return;
@@ -160,55 +166,51 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            clearState();
-            if (currentUser) {
-                setUser(currentUser);
-                const partnerDocRef = doc(db, "partners", currentUser.uid);
-                const partnerDocSnap = await getDoc(partnerDocRef);
-
-                if (partnerDocSnap.exists()) {
-                    setIsPartner(true);
-                    setPartner({ id: currentUser.uid, ...partnerDocSnap.data() } as Partner);
-                } else {
-                    setIsPartner(false);
-                    const userDocRef = doc(db, "users", currentUser.uid);
-                    try {
-                        const userDocSnap = await getDoc(userDocRef);
-                        if (userDocSnap.exists()) {
-                           const data = userDocSnap.data();
-                           setAvatarUrlState(data.avatarUrl || currentUser.photoURL || null);
-                           const userScore = data.score === undefined ? null : data.score;
-                           setScoreState(userScore);
-                           if (userScore === null && !window.location.pathname.includes('/dashboard/data-sources')) {
-                               router.push('/dashboard/data-sources');
-                           }
-                        } else {
-                            await setDoc(userDocRef, { 
-                               displayName: currentUser.displayName || `User-${currentUser.uid.substring(0,5)}`, 
-                               email: currentUser.email,
-                               avatarUrl: currentUser.photoURL, 
-                               score: null,
-                               createdAt: serverTimestamp()
-                           });
-                           setScoreState(null);
-                           router.push('/dashboard/data-sources');
-                        }
-                    } catch (e) {
-                        console.error("Error getting user document", e);
-                    }
-                }
+            if (!currentUser) {
+                clearState();
+                setAuthInitialized(true);
+                return;
+            }
+    
+            setUser(currentUser);
+            const partnerDocRef = doc(db, "partners", currentUser.uid);
+            const userDocRef = doc(db, "users", currentUser.uid);
+            
+            const [partnerDocSnap, userDocSnap] = await Promise.all([getDoc(partnerDocRef), getDoc(userDocRef)]);
+            
+            if (partnerDocSnap.exists()) {
+                setIsPartner(true);
+                setPartner({ id: currentUser.uid, ...partnerDocSnap.data() } as Partner);
             } else {
-                setUser(null);
+                setIsPartner(false);
+                if (userDocSnap.exists()) {
+                   const data = userDocSnap.data();
+                   setAvatarUrlState(data.avatarUrl || currentUser.photoURL || null);
+                   const userScore = data.score === undefined ? null : data.score;
+                   setScoreState(userScore);
+                } else {
+                    await setDoc(userDocRef, { 
+                       displayName: currentUser.displayName || `User-${currentUser.uid.substring(0,5)}`, 
+                       email: currentUser.email,
+                       avatarUrl: currentUser.photoURL || null, 
+                       score: null,
+                       createdAt: serverTimestamp()
+                   });
+                   setScoreState(null);
+                }
             }
             setAuthInitialized(true);
         });
         
         return () => unsubscribe();
-    }, [router, clearState]);
+    }, [clearState]);
     
     // Listener for ALL partners (for user view)
     useEffect(() => {
-        if (isPartner || !user) return; // Only run for regular users who are logged in
+        if (!user || isPartner) {
+            setPartners([]);
+            return;
+        };
     
         const unsubPartners = onSnapshot(collection(db, "partners"), async (snapshot) => {
             const partnerListPromises = snapshot.docs.map(async (pDoc) => {
@@ -264,7 +266,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     // Listener for partner-specific data
     useEffect(() => {
-        if (!user || !isPartner) {
+        if (!user || !isPartner || !partner) {
             setPartnerProducts([]);
             setLoanActivity([]);
             setApplications([]);
@@ -307,7 +309,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
            unsubLoanActivity();
            unsubApps();
        }
-    }, [user, isPartner]);
+    }, [user, isPartner, partner]);
     
 
     // Listener for notifications
@@ -510,7 +512,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 toast({ variant: 'destructive', title: "Deletion Failed", description: error.message || "An error occurred." });
             }
         }
-    }, [isPartner]);
+    }, [isPartner, logout]);
     
     const emailSignup = useCallback(async (email: string, pass: string, displayName: string) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
@@ -542,12 +544,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const partnerLogin = useCallback(async (email: string, pass: string) => {
         await signInWithEmailAndPassword(auth, email, pass);
     }, []);
-
-    const logout = useCallback(async () => {
-        await signOut(auth);
-        clearState();
-        router.push('/');
-    }, [router, clearState]);
     
     const contextValue = useMemo(() => ({
         user,
