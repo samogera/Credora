@@ -31,14 +31,20 @@ const prompt = ai.definePrompt({
 
 User's Credit Score: {{{score}}}
 
+{{#if loanProducts}}
 Available Loan Products:
 {{#each loanProducts}}
 - Partner: {{partnerName}}, Product: {{productName}}, Rate: {{interestRate}}, Max Amount: {{maxAmount}}, Requirements: {{requirements}}
 {{/each}}
+{{else}}
+There are no available loan products at the moment.
+{{/if}}
 
 Analyze each product and create a recommendation object for every loan product provided. For each one, set 'isRecommended' to true if the user's score meets or exceeds the product's requirements. Provide a short 'reason' (max 20 words) explaining why it is or isn't a good fit. Focus on the user's score and the product requirements in your reasoning.
 
-If no products are recommended, provide a concise, actionable 'improvementSuggestion' (max 30 words) for the user on how they can improve their score to qualify for loans. For example: "Your score is a bit low for current offers. Try improving your on-chain transaction history or connecting a utility bill to potentially qualify for more products."
+If no products are recommended (either because none exist or none match the user's score), provide a concise, actionable 'improvementSuggestion' (max 40 words) for the user on how they can improve their score to qualify for loans.
+Example for low score: "Your score is a bit low for current offers. Try improving your on-chain transaction history or connecting a utility bill to potentially qualify for more products."
+Example for no products: "No loan products are available right now. Please check back later as new partners join the ecosystem."
 `,
 });
 

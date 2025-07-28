@@ -1,12 +1,11 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback, useContext } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getLoanRecommendations } from "@/ai/flows/get-loan-recommendations";
-import { GetLoanRecommendationsInput, LoanRecommendation, GetLoanRecommendationsOutput } from "@/ai/schemas/loan-recommendations";
+import { GetLoanRecommendationsInput, GetLoanRecommendationsOutput } from "@/ai/schemas/loan-recommendations";
 import { Skeleton } from './ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle, Info, RefreshCw, XCircle, Lightbulb } from 'lucide-react';
@@ -19,7 +18,7 @@ interface LoanRecommendationsProps {
 }
 
 export function LoanRecommendations({ score }: LoanRecommendationsProps) {
-    const { partners } = useContext(UserContext);
+    const { partners, loading: userContextLoading } = useContext(UserContext);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<GetLoanRecommendationsOutput | null>(null);
@@ -37,12 +36,6 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                 requirements: prod.requirements || `Score > 650`, // Default requirement
             }))
         );
-
-        if (allLoanProducts.length === 0) {
-            setIsLoading(false);
-            setResult({ recommendations: [], improvementSuggestion: "There are currently no loan products available from our partners. Please check back later!" });
-            return;
-        }
 
         const input: GetLoanRecommendationsInput = {
             score: score,
@@ -66,11 +59,14 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
     }, [score, partners]);
 
     useEffect(() => {
-        handleGetRecommendations();
-    }, [handleGetRecommendations, score, partners]);
+        if (!userContextLoading) {
+            handleGetRecommendations();
+        }
+    }, [handleGetRecommendations, score, partners, userContextLoading]);
 
     const recommendedLoans = result?.recommendations?.filter(r => r.isRecommended) || [];
     const otherLoans = result?.recommendations?.filter(r => !r.isRecommended) || [];
+    const showLoading = isLoading || userContextLoading;
 
     return (
         <Card className="shadow-lg">
@@ -80,27 +76,27 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                         <CardTitle>AI Loan Recommendations</CardTitle>
                         <CardDescription>Suggestions for your credit score of <span className="text-accent font-bold">{score}</span>.</CardDescription>
                     </div>
-                     <Button size="sm" onClick={handleGetRecommendations} disabled={isLoading}>
-                        <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        {isLoading ? 'Refreshing...' : 'Refresh'}
+                     <Button size="sm" onClick={handleGetRecommendations} disabled={showLoading}>
+                        <RefreshCw className={`mr-2 h-4 w-4 ${showLoading ? 'animate-spin' : ''}`} />
+                        {showLoading ? 'Refreshing...' : 'Refresh'}
                     </Button>
                 </div>
             </CardHeader>
             <CardContent>
-                {isLoading && (
+                {showLoading && (
                     <div className="space-y-4">
                         <Skeleton className="h-24 w-full" />
                         <Skeleton className="h-24 w-full" />
                     </div>
                 )}
-                {error && !isLoading && (
+                {error && !showLoading && (
                     <Alert variant="destructive">
                         <XCircle className="h-4 w-4" />
                         <AlertTitle>Error</AlertTitle>
                         <AlertDescription>{error}</AlertDescription>
                     </Alert>
                 )}
-                {!isLoading && !error && result && (
+                {!showLoading && !error && result && (
                     <div className="space-y-4">
                         {recommendedLoans.length > 0 ? recommendedLoans.map((rec, index) => (
                              <Alert key={index} className="border-accent/50 text-foreground [&>svg]:text-accent">
@@ -121,7 +117,7 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                             result.improvementSuggestion && (
                                 <Alert>
                                     <Lightbulb className="h-4 w-4" />
-                                    <AlertTitle>No Recommended Loans Yet</AlertTitle>
+                                    <AlertTitle>Actionable Advice</AlertTitle>
                                     <AlertDescription>
                                         {result.improvementSuggestion}
                                     </AlertDescription>
@@ -139,9 +135,6 @@ export function LoanRecommendations({ score }: LoanRecommendationsProps) {
                                 </AlertDescription>
                             </Alert>
                         ))}
-                        {result.recommendations.length === 0 && !result.improvementSuggestion && (
-                            <p className="text-muted-foreground text-center py-4">No loan products currently available from our partners.</p>
-                        )}
                     </div>
                 )}
             </CardContent>
