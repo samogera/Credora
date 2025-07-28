@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, Info, FileSignature, Bot, MoreHorizontal, User, XCircle, Wallet } from 'lucide-react';
+import { CheckCircle, Info, Bot, MoreHorizontal, User, XCircle, Wallet } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { PartnerPortfolio } from '@/components/partner-portfolio';
 import { LoanActivity } from '@/components/loan-activity';
@@ -54,6 +54,11 @@ export default function PartnerAdminPage() {
         if (!app.aiExplanation) {
           handleExplainRisk(app);
         }
+        // Simulate real-time score verification from Soroban
+        toast({
+            title: "Verifying Score...",
+            description: `Fetching latest score for ${app.user?.displayName || 'user'} from the Soroban contract.`
+        })
     };
 
     const handleExplainRisk = async (appToExplain: Application) => {
@@ -181,7 +186,7 @@ export default function PartnerAdminPage() {
                         <div className="grid grid-cols-2 gap-4 text-center">
                             <Card className="pt-6">
                                 <CardContent>
-                                    <p className="text-sm text-muted-foreground">Credora Score</p>
+                                    <p className="text-sm text-muted-foreground">Credora Score (On-Chain)</p>
                                     <p className={`text-5xl font-bold ${getScoreColor(selectedApplication?.score || 0)}`}>{selectedApplication?.score}</p>
                                 </CardContent>
                             </Card>

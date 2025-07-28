@@ -19,9 +19,9 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 
 const wallets = [
+    { name: "Freighter", logo: "https://lh3.googleusercontent.com/_IWkBPJYpuslJcxNCIxeoJqmKJ8WOek43XeEsE_EiDrMzawR31KTAVweF-oyGVKJjW9kbDkxByD6mpYoV7H8uGQA=s60" },
     { name: "Lobstr", logo: "https://www.kindpng.com/picc/m/355-3552768_lobstr-wallet-logo-hd-png-download.png" },
     { name: "Trust Wallet", logo: "https://play-lh.googleusercontent.com/cd5BevWohRqLwsI2_i3k4YIVtcO57cIZCs6l20H1Hcdj0P2rFEcX_7QtgKbTM3Sn_A" },
-    { name: "Freighter", logo: "https://lh3.googleusercontent.com/_IWkBPJYpuslJcxNCIxeoJqmKJ8WOek43XeEsE_EiDrMzawR31KTAVweF-oyGVKJjW9kbDkxByD6mpYoV7H8uGQA=s60" },
     { name: "Custom address / other", isCustom: true, dataAiHint: "logo custom" },
 ];
 
@@ -44,7 +44,7 @@ export function WalletDialog({ open, onOpenChange, onConnect }: WalletDialogProp
   }
 
   const handleConnection = async (walletName: string) => {
-    let toastDescription = `Please approve the connection in your ${walletName} wallet.`;
+    let toastDescription = `Please approve the Soroban auth transaction (SEP-10) in your ${walletName} wallet.`;
     if (walletName.toLowerCase().includes('custom')) {
         if (!publicKey.trim().startsWith('G') || publicKey.trim().length !== 56) {
              toast({
@@ -88,7 +88,7 @@ export function WalletDialog({ open, onOpenChange, onConnect }: WalletDialogProp
         <DialogHeader>
           <DialogTitle>{showCustomInput ? 'Enter Public Key' : 'Connect a Stellar Wallet'}</DialogTitle>
           <DialogDescription>
-             {showCustomInput ? 'Please enter your Stellar public address to connect.' : 'Choose your preferred wallet to build your score.'}
+             {showCustomInput ? 'Please enter your Stellar public address to connect.' : 'Choose your preferred wallet to build your score. Connecting requires signing a secure Soroban transaction.'}
           </DialogDescription>
         </DialogHeader>
         {showCustomInput ? (

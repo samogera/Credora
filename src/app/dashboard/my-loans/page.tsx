@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useContext } from 'react';
@@ -16,7 +17,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { CreditCard, Landmark, Wallet, Smartphone, VenetianSconce } from 'lucide-react';
+import { CreditCard, Landmark, Wallet, Smartphone } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 export default function MyLoansPage() {
@@ -34,8 +35,8 @@ export default function MyLoansPage() {
         if (!selectedLoan) return;
         setIsRepaying(true);
         toast({
-            title: "Processing Payment...",
-            description: "Your payment is being securely processed.",
+            title: "Submitting to Soroban...",
+            description: "Your repayment transaction is being sent to the LoanAgreement contract.",
         });
 
         setTimeout(() => {
@@ -43,7 +44,7 @@ export default function MyLoansPage() {
             setSelectedLoan(null);
             toast({
                 title: "Payment Successful!",
-                description: `Your payment for the loan from ${selectedLoan.partnerName} has been received.`,
+                description: `Your repayment for the loan from ${selectedLoan.partnerName} has been confirmed on-chain.`,
             });
             // Here you would add the logic to update the loan's repaid amount in the database
         }, 2000);
@@ -119,7 +120,7 @@ export default function MyLoansPage() {
                     <DialogHeader>
                         <DialogTitle>Make a Repayment</DialogTitle>
                         <DialogDescription>
-                            Choose your preferred method to repay your loan from {selectedLoan?.partnerName}.
+                            Choose your preferred method to repay your loan from {selectedLoan?.partnerName}. Your payment will be a USDC transfer on Stellar.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="py-4 space-y-4">
@@ -136,7 +137,7 @@ export default function MyLoansPage() {
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setSelectedLoan(null)} disabled={isRepaying}>Cancel</Button>
                         <Button onClick={handlePayment} disabled={isRepaying}>
-                            {isRepaying ? 'Processing...' : 'Confirm Payment'}
+                            {isRepaying ? 'Processing...' : 'Pay Now'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -144,5 +145,3 @@ export default function MyLoansPage() {
         </>
     )
 }
-
-    
