@@ -40,6 +40,18 @@ export default function MyLoansPage() {
 
     const handlePayment = async () => {
         if (!selectedLoan || !repaymentAmount || repaymentAmount <= 0) return;
+        
+        // Final, robust check for a valid loan ID.
+        const loanIdToRepay = parseInt(String(selectedLoan.sorobanLoanId), 10);
+        if (isNaN(loanIdToRepay) || loanIdToRepay <= 0) {
+            toast({
+                title: "Repayment Error",
+                description: "The loan ID is invalid. Please contact support.",
+                variant: 'destructive',
+            });
+            return;
+        }
+        
         setIsRepaying(true);
         toast({
             title: "Submitting to Soroban...",
@@ -47,12 +59,6 @@ export default function MyLoansPage() {
         });
 
         try {
-            // Ensure sorobanLoanId is a clean number before passing it.
-            const loanIdToRepay = parseInt(selectedLoan.sorobanLoanId || '0', 10);
-            if (isNaN(loanIdToRepay) || loanIdToRepay === 0) {
-                 throw new Error("Invalid Loan ID found.");
-            }
-            
             // TODO: REPLACE WITH REAL SOROBAN CALL
             const txHash = await repayLoan(loanIdToRepay, repaymentAmount);
 
@@ -63,12 +69,10 @@ export default function MyLoansPage() {
             setSelectedLoan(null);
             setRepaymentAmount('');
 
-
             toast({
                 title: "Payment Successful!",
                 description: `Repayment of $${repaymentAmount.toLocaleString()} for ${selectedLoan.partnerName} confirmed. Mock TX: ${txHash.substring(0, 20)}...`,
             });
-            
 
         } catch(e: any) {
             console.error("Mock Soroban error:", e);

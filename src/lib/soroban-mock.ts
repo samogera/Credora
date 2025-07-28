@@ -97,22 +97,22 @@ export const createLoan = async (
 export const repayLoan = async (loanId: number, amount: number): Promise<TxHash> => {
   await simulateNetworkDelay();
   
-  if (isNaN(loanId)) {
-      throw new Error('Invalid Loan ID provided for repayment.');
+  if (isNaN(loanId) || loanId <= 0) {
+      throw new Error(`Invalid Loan ID provided for repayment: ${loanId}`);
   }
   const loan = mockDb.loans.get(loanId);
   if (!loan) throw new Error('Loan not found');
 
   const rate = loan.interestRate / 100 / 12; // monthly rate
-  const totalRepayment = loan.term > 0 
+  const totalToRepay = loan.term > 0 
     ? (loan.amount * rate * Math.pow(1 + rate, loan.term)) / (Math.pow(1 + rate, loan.term) - 1) * loan.term 
     : loan.amount;
   
   loan.repaid += amount;
   
-  if (loan.repaid >= totalRepayment) {
+  if (loan.repaid >= totalToRepay) {
     loan.status = 'repaid';
-    loan.repaid = totalRepayment; // Cap repayment at total, handles overpayment case
+    loan.repaid = totalToRepay; // Cap repayment at total, handles overpayment case
   }
   
   return `mock-tx-hash-repay-${loanId}`;

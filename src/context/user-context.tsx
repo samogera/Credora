@@ -478,10 +478,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 appData.loan.term
             );
             
-            const loanId = txHash.split('-').pop(); 
-            if(!loanId || isNaN(parseInt(loanId))) {
+            const loanIdString = txHash.split('-').pop(); 
+            if(!loanIdString || isNaN(parseInt(loanIdString))) {
                 throw new Error("Invalid loan ID returned from mock Soroban.");
             }
+            const loanId = parseInt(loanIdString, 10);
 
             const rate = appData.loan.interestRate / 100 / 12;
             const term = appData.loan.term;
@@ -490,7 +491,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             const totalInterest = totalRepayment - appData.amount;
 
             const loanActivityData: Omit<LoanActivityItem, 'id' | 'createdAt'> = {
-                sorobanLoanId: loanId,
+                sorobanLoanId: String(loanId),
                 user: { displayName: appData.user?.displayName || 'Unknown User' },
                 userId: appData.userId,
                 partnerId: appData.loan.partnerId,
