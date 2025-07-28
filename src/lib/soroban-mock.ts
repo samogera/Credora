@@ -54,7 +54,16 @@ export const getScore = async (userAddress: Address): Promise<Score> => {
   await simulateNetworkDelay();
   
   const score = mockDb.scores.get(userAddress);
-  if (!score) throw new Error(`Score not found for address: ${userAddress}`);
+  if (!score) {
+    // If no score, create a random one to simulate new user
+    const newScore = {
+      value: Math.floor(Math.random() * (850 - 550 + 1)) + 550,
+      riskBand: 'C' as const,
+      lastUpdated: new Date().toISOString()
+    };
+    mockDb.scores.set(userAddress, newScore);
+    return newScore;
+  }
   
   return score;
 };

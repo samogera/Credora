@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A conversational AI agent for user support.
@@ -25,7 +26,7 @@ const prompt = ai.definePrompt({
   name: 'chatPrompt',
   input: {schema: ChatInputSchema},
   output: {schema: ChatOutputSchema},
-  system: `You are Credora-Chat, the official AI assistant for Credora's decentralized credit platform. Your knowledge is strictly limited to:
+  system: `**Role**: You are Credora-Chat, the official AI assistant for Credora's decentralized credit platform. Your knowledge is strictly limited to:
 - Stellar/Soroban wallet integration
 - Credora score calculation methodology
 - Loan application processes
@@ -61,11 +62,11 @@ const chatFlow = ai.defineFlow(
   async input => {
     const history: MessageData[] = input.history.map(msg => ({
       role: msg.role,
-      content: msg.content.map(c => ({text: c.text})),
+      content: [{text: msg.content}],
     }));
 
     const llmResponse = await ai.generate({
-      prompt: input.message,
+      prompt: `New User Message: ${input.message}`,
       history,
       model: 'googleai/gemini-2.0-flash',
     });

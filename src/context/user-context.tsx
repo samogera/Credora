@@ -327,7 +327,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     
     }, [user, isPartner, refreshLoanActivity]);
     
-    useEffect(() => {
+     useEffect(() => {
        if(!loading && user && isPartner !== null) {
             const currentPath = window.location.pathname;
             if (isPartner) {
@@ -352,7 +352,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         if (!user || isPartner) return;
         const userDocRef = doc(db, "users", user.uid);
         try {
-            await updateDoc(userDocRef, { score: newScore, walletAddress: walletAddr });
+            const dataToUpdate: { score: number | null, walletAddress?: string } = { score: newScore };
+            if (walletAddr) {
+                dataToUpdate.walletAddress = walletAddr;
+            }
+            await updateDoc(userDocRef, dataToUpdate);
         } catch (error) {
             console.error("Error setting score:", error);
         }
@@ -366,11 +370,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             const fetchedScore = await getScore(newWalletAddress);
             await setScore(fetchedScore.value, newWalletAddress);
             toast({
-              title: "Soroban Auth",
-              description: "Please sign the SEP-10 transaction to authenticate your wallet.",
+              title: "Wallet Connected",
+              description: "Your score has been calculated based on your on-chain activity.",
             });
         } catch (e: any) {
             console.error("Error fetching mock score:", e);
+            toast({
+                title: "Connection Error",
+                description: "Could not fetch score from the mock Soroban service.",
+                variant: 'destructive',
+            })
+            // Fallback to random score if mock service fails
             const randomScore = Math.floor(Math.random() * (850 - 550 + 1)) + 550;
             await setScore(randomScore, newWalletAddress);
         }
@@ -393,7 +403,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const targetPartner = partners.find(p => p.name === app.loan.partnerName);
         if (!targetPartner) throw new Error("Lending partner not found.");
         
-        // Fetch latest score to ensure data integrity
         const latestScore = await getScore(walletAddress);
 
         const newApp: Omit<Application, 'id' | 'aiExplanation'> = {

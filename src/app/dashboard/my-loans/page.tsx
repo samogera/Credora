@@ -25,7 +25,7 @@ export default function MyLoansPage() {
     const { loanActivity, user, refreshLoanActivity } = useContext(UserContext);
     const [selectedLoan, setSelectedLoan] = useState<LoanActivityItem | null>(null);
     const [isRepaying, setIsRepaying] = useState(false);
-    const [repaymentAmount, setRepaymentAmount] = useState<number | ''>('');
+    const [repaymentAmount, setRepaymentAmount] = useState<number | string>('');
 
     const userLoans = loanActivity.filter(loan => loan.userId === user?.uid);
 
@@ -38,14 +38,13 @@ export default function MyLoansPage() {
     }
 
     const handlePayment = async () => {
-        if (!selectedLoan || !repaymentAmount || repaymentAmount <= 0) return;
+        if (!selectedLoan || !repaymentAmount || Number(repaymentAmount) <= 0) return;
         
-        // Final, robust check for a valid loan ID.
-        const loanIdToRepay = parseInt(String(selectedLoan.sorobanLoanId), 10);
-        if (isNaN(loanIdToRepay) || loanIdToRepay <= 0) {
+        const loanIdToRepay = selectedLoan.sorobanLoanId;
+        if (typeof loanIdToRepay !== 'number' || isNaN(loanIdToRepay) || loanIdToRepay <= 0) {
             toast({
                 title: "Repayment Error",
-                description: "The loan ID is invalid. Please contact support.",
+                description: `The loan ID is invalid or missing. Please contact support. Provided ID: ${loanIdToRepay}`,
                 variant: 'destructive',
             });
             return;
@@ -68,7 +67,7 @@ export default function MyLoansPage() {
 
             toast({
                 title: "Payment Successful!",
-                description: `Repayment of $${repaymentAmount.toLocaleString()} for ${selectedLoan.partnerName} confirmed. Mock TX: ${txHash.substring(0, 20)}...`,
+                description: `Repayment of $${Number(repaymentAmount).toLocaleString()} for ${selectedLoan.partnerName} confirmed. Mock TX: ${txHash.substring(0, 20)}...`,
             });
 
         } catch(e: any) {
@@ -177,8 +176,8 @@ export default function MyLoansPage() {
                             <Input 
                                 id="repayment-amount"
                                 type="number"
-                                value={repaymentAmount || ''}
-                                onChange={(e) => setRepaymentAmount(parseFloat(e.target.value) || 0)}
+                                value={repaymentAmount}
+                                onChange={(e) => setRepaymentAmount(e.target.value)}
                                 max={selectedLoan ? selectedLoan.amount + (selectedLoan.interestAccrued || 0) - (selectedLoan.repaid || 0) : 0}
                                 min="0"
                             />
@@ -186,7 +185,7 @@ export default function MyLoansPage() {
                     </div>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setSelectedLoan(null)} disabled={isRepaying}>Cancel</Button>
-                        <Button onClick={handlePayment} disabled={isRepaying || !repaymentAmount || repaymentAmount <= 0}>
+                        <Button onClick={handlePayment} disabled={isRepaying || !repaymentAmount || Number(repaymentAmount) <= 0}>
                             {isRepaying ? 'Processing...' : `Pay ${formatCurrency(Number(repaymentAmount))}`}
                         </Button>
                     </DialogFooter>
