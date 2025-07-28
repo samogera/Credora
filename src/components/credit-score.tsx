@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -16,12 +17,12 @@ import {
 import { Bar, BarChart, XAxis, YAxis } from "recharts"
 
 const chartData = [
-  { month: "January", score: 750 },
-  { month: "February", score: 760 },
-  { month: "March", score: 755 },
-  { month: "April", score: 770 },
-  { month: "May", score: 780 },
-  { month: "June", score: 785 },
+  { month: "January", score: null },
+  { month: "February", score: null },
+  { month: "March", score: null },
+  { month: "April", score: null },
+  { month: "May", score: null },
+  { month: "June", score: null },
 ]
 
 const chartConfig = {
@@ -32,14 +33,16 @@ const chartConfig = {
 }
 
 interface CreditScoreProps {
-    score: number;
-    setScore: (score: number) => void;
+    score: number | null;
+    setScore: (score: number | null) => void;
 }
 
 export function CreditScore({ score, setScore }: CreditScoreProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [localChartData, setLocalChartData] = useState(chartData);
 
-  const getRiskCategory = (currentScore: number) => {
+  const getRiskCategory = (currentScore: number | null) => {
+    if (currentScore === null) return { text: "N/A", variant: "secondary" as const, color: "bg-gray-500" };
     if (currentScore >= 800) return { text: "Excellent", variant: "default" as const, color: "bg-green-500" };
     if (currentScore >= 740) return { text: "Very Good", variant: "default" as const, color: "bg-emerald-500" };
     if (currentScore >= 670) return { text: "Good", variant: "secondary" as const, color: "bg-sky-500" };
@@ -51,6 +54,11 @@ export function CreditScore({ score, setScore }: CreditScoreProps) {
 
   useEffect(() => {
     setRiskCategory(getRiskCategory(score));
+    setLocalChartData(prevData => {
+        const newData = [...prevData];
+        newData[newData.length - 1].score = score;
+        return newData;
+    })
   }, [score]);
 
   const handleRecalculate = () => {
@@ -69,7 +77,7 @@ export function CreditScore({ score, setScore }: CreditScoreProps) {
             <CardTitle className="text-xl font-bold">Your Credora Score</CardTitle>
             <CardDescription>A real-time measure of your financial health.</CardDescription>
         </div>
-         <Button onClick={handleRecalculate} disabled={isLoading} size="sm" className='w-full sm:w-auto'>
+         <Button onClick={handleRecalculate} disabled={isLoading || score === null} size="sm" className='w-full sm:w-auto'>
           <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           {isLoading ? 'Recalculating...' : 'Recalculate'}
         </Button>
@@ -84,18 +92,18 @@ export function CreditScore({ score, setScore }: CreditScoreProps) {
                 </>
             ) : (
                 <>
-                    <div className="text-5xl sm:text-7xl font-bold text-primary" style={{fontFamily: 'var(--font-source-code-pro)'}}>{score}</div>
+                    <div className="text-5xl sm:text-7xl font-bold text-primary" style={{fontFamily: 'var(--font-source-code-pro)'}}>{score ?? '---'}</div>
                     <div className="flex flex-wrap items-center justify-center gap-2">
                       <Badge className={`${riskCategory.color} hover:${riskCategory.color}`}>{riskCategory.text} Risk</Badge>
-                      <Badge variant="outline">Confidence: 95%</Badge>
+                      <Badge variant="outline">Confidence: {score ? '95%' : 'N/A'}</Badge>
                     </div>
-                    <Progress value={(score / 850) * 100} className="w-full h-2.5" />
+                    <Progress value={score ? (score / 850) * 100 : 0} className="w-full h-2.5" />
                 </>
             )}
         </div>
         <div className="min-h-[250px]">
             <ChartContainer config={chartConfig} className="w-full h-full">
-                <BarChart accessibilityLayer data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
+                <BarChart accessibilityLayer data={localChartData} margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
                     <XAxis
                       dataKey="month"
                       tickLine={false}

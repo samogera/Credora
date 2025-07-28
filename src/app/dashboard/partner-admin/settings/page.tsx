@@ -9,16 +9,28 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { PlusCircle, Upload, Image as ImageIcon, Trash2 } from "lucide-react";
+import { PlusCircle, Upload, Image as ImageIcon, Trash2, ShieldAlert } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { UserContext } from '@/context/user-context';
 import { toast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 export default function PartnerSettingsPage() {
-    const { partner, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct } = useContext(UserContext);
+    const { partner, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct, deleteAccount } = useContext(UserContext);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [confirmText, setConfirmText] = useState("");
     
     // Local state for new product form
     const [newProduct, setNewProduct] = useState({ name: '', rate: '', maxAmount: '', term: '', requirements: '' });
@@ -143,6 +155,51 @@ export default function PartnerSettingsPage() {
                             <PlusCircle className="mr-2 h-4 w-4" />
                             Add New Product
                         </Button>
+                    </CardContent>
+                </Card>
+
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="text-destructive">Danger Zone</CardTitle>
+                        <CardDescription>These actions are permanent and cannot be undone.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between rounded-lg border border-destructive/50 p-4">
+                            <div>
+                                <h4 className="font-semibold text-destructive">Delete Partner Account</h4>
+                                <p className="text-sm text-muted-foreground">This will permanently delete your account, loan products, and all associated data.</p>
+                            </div>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive">Delete Account</Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action is irreversible. All of your loan products, active loans, and application history will be permanently deleted. To confirm, please type <strong className="text-foreground">DELETE</strong> into the box below.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <Input 
+                                        id="confirm-delete" 
+                                        placeholder="Type DELETE to confirm"
+                                        value={confirmText}
+                                        onChange={(e) => setConfirmText(e.target.value)}
+                                        className="border-destructive focus-visible:ring-destructive"
+                                    />
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel onClick={() => setConfirmText("")}>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                        onClick={deleteAccount}
+                                        disabled={confirmText !== 'DELETE'}
+                                        className="bg-destructive hover:bg-destructive/90"
+                                    >
+                                        Delete My Account
+                                    </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
                     </CardContent>
                 </Card>
             </div>

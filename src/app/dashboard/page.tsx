@@ -1,15 +1,43 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useContext } from 'react';
 import { CreditScore } from "@/components/credit-score";
 import { DataSources } from "@/components/data-sources";
 import { RiskFactors } from "@/components/risk-factors";
 import { LoanRecommendations } from "@/components/loan-recommendations";
 import { ApplicationStatus } from "@/components/application-status";
+import { UserContext } from '@/context/user-context';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 export default function Dashboard() {
-  const [score, setScore] = useState(785);
+  const { score, setScore } = useContext(UserContext);
+
+  if (score === null) {
+    return (
+        <div className="grid gap-6 md:grid-cols-2">
+             <div className="md:col-span-2">
+                <Card className="text-center shadow-lg">
+                    <CardHeader>
+                        <CardTitle>Welcome to Credora!</CardTitle>
+                        <CardDescription>Let's calculate your decentralized credit score.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <p className="text-muted-foreground">To get started, connect your first data source. Your Stellar wallet is a great place to begin.</p>
+                        <Button asChild>
+                            <Link href="/dashboard/data-sources">Connect Data Source</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+             <div className="space-y-6">
+                <DataSources />
+            </div>
+        </div>
+    )
+  }
 
   return (
     <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">

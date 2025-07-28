@@ -22,7 +22,7 @@ import { UserContext, LoanProduct, Application } from '@/context/user-context';
 
 
 export default function PartnersPage() {
-    const { partners, addApplication, user } = useContext(UserContext);
+    const { partners, addApplication, user, score } = useContext(UserContext);
     const [selectedLoan, setSelectedLoan] = useState<LoanProduct & { partnerName: string } | null>(null);
     const [isApplying, setIsApplying] = useState(false);
     const [customAmount, setCustomAmount] = useState(500);
@@ -36,8 +36,7 @@ export default function PartnersPage() {
         if (!selectedLoan || !user) return;
         setIsApplying(true);
 
-        const newApplication: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar' | 'createdAt'> = {
-            score: 785, // Dummy score
+        const newApplication: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar' | 'createdAt' | 'score'> = {
             loan: {
                 id: selectedLoan.id,
                 name: selectedLoan.name,
@@ -63,6 +62,8 @@ export default function PartnersPage() {
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
     }
+    
+    const canApply = user && score !== null;
 
   return (
     <>
@@ -89,7 +90,7 @@ export default function PartnersPage() {
                                 <p className="font-medium">{product.name}</p>
                                 <p className="text-sm text-muted-foreground">Up to {formatCurrency(product.maxAmount)} at {product.rate}</p>
                             </div>
-                            <Button size="sm" onClick={() => handleApplyClick(product, partner.name)} disabled={!user}>Apply</Button>
+                            <Button size="sm" onClick={() => handleApplyClick(product, partner.name)} disabled={!canApply}>Apply</Button>
                         </div>
                     ))}
                     {partner.products.length === 0 && (

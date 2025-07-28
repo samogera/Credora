@@ -1,7 +1,8 @@
 
+
 "use client";
 
-import { useRef, useContext } from 'react';
+import { useRef, useContext, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,15 +12,26 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User, Upload } from 'lucide-react';
 import { UserContext } from '@/context/user-context';
 import { ThemeToggle } from '@/components/theme-toggle';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 export default function SettingsPage() {
-    const { avatarUrl, setAvatarUrl } = useContext(UserContext);
+    const { user, avatarUrl, setAvatarUrl, deleteAccount } = useContext(UserContext);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [confirmText, setConfirmText] = useState("");
 
     const userData = {
-        name: "Anonymous User",
-        email: "user@example.com",
-        wallet: "GABC...XYZ",
+        name: user?.displayName || "Anonymous User",
+        email: user?.email || "user@example.com",
     };
 
     const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,10 +89,6 @@ export default function SettingsPage() {
                             <Label htmlFor="email">Email Address</Label>
                             <Input id="email" type="email" defaultValue={userData.email} />
                         </div>
-                         <div className="space-y-2">
-                            <Label htmlFor="wallet">Stellar Wallet</Label>
-                            <Input id="wallet" defaultValue={userData.wallet} disabled />
-                        </div>
                         <Button>Update Profile</Button>
                     </CardContent>
                 </Card>
@@ -120,6 +128,51 @@ export default function SettingsPage() {
                                 <p className="text-sm text-muted-foreground">Get notified about new loan products from partners.</p>
                             </div>
                             <Switch />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="text-destructive">Danger Zone</CardTitle>
+                        <CardDescription>These actions are permanent and cannot be undone.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between rounded-lg border border-destructive/50 p-4">
+                            <div>
+                                <h4 className="font-semibold text-destructive">Delete My Account</h4>
+                                <p className="text-sm text-muted-foreground">This will permanently delete your account and all associated data.</p>
+                            </div>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive">Delete Account</Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action is irreversible. All of your application history, connected data sources, and account information will be permanently deleted. To confirm, please type <strong className="text-foreground">DELETE</strong> into the box below.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <Input 
+                                        id="confirm-delete" 
+                                        placeholder="Type DELETE to confirm"
+                                        value={confirmText}
+                                        onChange={(e) => setConfirmText(e.target.value)}
+                                        className="border-destructive focus-visible:ring-destructive"
+                                    />
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel onClick={() => setConfirmText("")}>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                        onClick={deleteAccount}
+                                        disabled={confirmText !== 'DELETE'}
+                                        className="bg-destructive hover:bg-destructive/90"
+                                    >
+                                        Delete My Account
+                                    </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
                     </CardContent>
                 </Card>

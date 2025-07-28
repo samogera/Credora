@@ -1,13 +1,33 @@
+
+"use client";
+
 import { DataSources } from "@/components/data-sources";
+import { UserContext } from "@/context/user-context";
+import { useContext } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Terminal } from "lucide-react";
 
 export default function DataSourcesPage() {
+    const { score } = useContext(UserContext);
+    
     return (
         <div className="max-w-2xl mx-auto">
              <div className="space-y-4 mb-6">
                 <h1 className="text-3xl font-bold tracking-tight">Data Sources</h1>
                 <p className="text-muted-foreground">Connect your data to build your score. You are always in control of what you share.</p>
             </div>
-            <DataSources />
+            {!score && (
+                 <Alert>
+                    <Terminal className="h-4 w-4" />
+                    <AlertTitle>Your Score is Not Yet Calculated</AlertTitle>
+                    <AlertDescription>
+                        Please connect at least one data source, like your Stellar wallet, to generate your initial Credora Score.
+                    </AlertDescription>
+                </Alert>
+            )}
+            <div className="mt-6">
+                <DataSources />
+            </div>
         </div>
     )
 }

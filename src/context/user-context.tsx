@@ -1,12 +1,14 @@
 
+
 "use client";
 
 import { createContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, auth } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
-import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, deleteUser } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 // Types
 export type LoanProduct = {
@@ -85,10 +87,14 @@ interface UserContextType {
     emailSignup: (email: string, pass: string, displayName: string) => Promise<void>;
     partnerLogin: (email: string, pass: string) => Promise<void>;
     partnerSignup: (email: string, pass: string, name: string, website: string) => Promise<void>;
+    deleteAccount: () => Promise<void>;
+    score: number | null;
+    setScore: (score: number | null) => void;
+    connectWalletAndSetScore: () => void;
     avatarUrl: string | null;
     setAvatarUrl: (url: string) => void;
     applications: Application[];
-    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt'>) => Promise<void>;
+    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score'>) => Promise<void>;
     updateApplicationStatus: (appId: string, status: 'Approved' | 'Denied') => Promise<void>;
     userSignLoan: (appId: string) => Promise<void>;
     partners: Partner[];
@@ -115,8 +121,24 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loanActivity, setLoanActivity] = useState<LoanActivityItem[]>([]);
     const [partnerProducts, setPartnerProducts] = useState<LoanProduct[]>([]);
+    const [score, setScore] = useState<number | null>(null);
 
     const loading = !authInitialized;
+    const router = useRouter();
+
+
+    const clearState = () => {
+        setUser(null);
+        setPartner(null);
+        setIsPartner(false);
+        setAvatarUrlState(null);
+        setApplications([]);
+        setPartners([]);
+        setNotifications([]);
+        setLoanActivity([]);
+        setPartnerProducts([]);
+        setScore(null);
+    }
 
     const addNotification = useCallback(async (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
         try {
@@ -125,6 +147,32 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             console.error("Error adding notification:", error);
         }
     }, []);
+
+     const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
+        const appRef = doc(db, "applications", appId);
+        await updateDoc(appRef, { status });
+
+        const appToUpdate = applications.find(a => a.id === appId);
+        if (!appToUpdate) throw new Error("Application not found");
+        
+        if (status === 'Approved') {
+            await addNotification({
+                for: 'user',
+                userId: appToUpdate.userId,
+                type: 'approval',
+                title: `Loan Approved`,
+                message: `Your application for the ${appToUpdate.loan.name} is approved! Please sign the contract on your dashboard to receive your funds.`,
+            });
+        } else { // Denied
+            await addNotification({
+                for: 'user',
+                userId: appToUpdate.userId,
+                type: 'denial',
+                title: `Loan Denied`,
+                message: `Your application for the ${appToUpdate.loan.name} has been denied.`,
+            });
+        }
+    }, [applications, addNotification]);
 
     const userSignLoan = useCallback(async (appId: string) => {
         const appToSign = applications.find(a => a.id === appId);
@@ -169,39 +217,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     }, [applications, addNotification]);
 
-    const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
-        const appRef = doc(db, "applications", appId);
-        await updateDoc(appRef, { status });
-
-        const appToUpdate = applications.find(a => a.id === appId);
-        if (!appToUpdate) throw new Error("Application not found");
-        
-        if (status === 'Approved') {
-            await addNotification({
-                for: 'user',
-                userId: appToUpdate.userId,
-                type: 'approval',
-                title: `Loan Approved`,
-                message: `Your application for the ${appToUpdate.loan.name} is approved! Please sign the contract on your dashboard to receive your funds.`,
-            });
-        } else { // Denied
-            await addNotification({
-                for: 'user',
-                userId: appToUpdate.userId,
-                type: 'denial',
-                title: `Loan Denied`,
-                message: `Your application for the ${appToUpdate.loan.name} has been denied.`,
-            });
-        }
-    }, [applications, addNotification]);
-
-
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            setUser(null);
-            setPartner(null);
-            setIsPartner(false);
-            
+            clearState();
             if (currentUser) {
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
                 const partnerDocSnap = await getDoc(partnerDocRef);
@@ -210,13 +228,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     setIsPartner(true);
                     setPartner({ id: currentUser.uid, ...partnerDocSnap.data() } as Partner);
                 } else {
-                    const userDocRef = doc(db, "users", currentUser.uid);
+                     const userDocRef = doc(db, "users", currentUser.uid);
                     const userDocSnap = await getDoc(userDocRef);
                     if (!userDocSnap.exists()) {
                          await setDoc(userDocRef, { 
                             displayName: currentUser.displayName || `User-${currentUser.uid.substring(0,5)}`, 
                             email: currentUser.email,
                             avatarUrl: currentUser.photoURL, 
+                            score: null,
                             createdAt: serverTimestamp()
                         });
                     }
@@ -230,17 +249,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return () => unsubscribe();
     }, []);
     
-    // Listener for general user data (avatar)
+    // Listener for general user data (avatar, score)
     useEffect(() => {
         if (!user || isPartner) {
-            setAvatarUrlState(null)
+            setAvatarUrlState(null);
+            setScore(null);
             return;
         }
 
         const userDocRef = doc(db, "users", user.uid);
         const unsubUser = onSnapshot(userDocRef, (doc) => {
             if (doc.exists()) {
-                setAvatarUrlState(doc.data().avatarUrl || user.photoURL || null);
+                const data = doc.data();
+                setAvatarUrlState(data.avatarUrl || user.photoURL || null);
+                setScore(data.score || null);
             }
         });
 
@@ -378,6 +400,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         return () => unsubNotifs();
     }, [user, isPartner, partner]);
+
+    const connectWalletAndSetScore = useCallback(async () => {
+        if (!user || isPartner) return;
+        const newScore = Math.floor(Math.random() * (850 - 550 + 1)) + 550;
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, { score: newScore });
+        setScore(newScore);
+    }, [user, isPartner]);
     
     const setAvatarUrl = useCallback(async (url: string) => {
         if (!user || isPartner) return;
@@ -385,19 +415,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         await updateDoc(userDocRef, { avatarUrl: url });
     }, [user, isPartner]);
 
-    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt'>) => {
-        if (!user) throw new Error("User not logged in.");
+    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score'>) => {
+        if (!user || !score) throw new Error("User not logged in or score not calculated.");
         
         const targetPartner = partners.find(p => p.name === app.loan.partnerName);
         if (!targetPartner) throw new Error("Lending partner not found.");
             
         const newApp = {
             ...app,
+            score: score,
             userId: user.uid,
             loan: { ...app.loan, partnerId: targetPartner.id },
             createdAt: serverTimestamp()
         };
-        const newAppRef = await addDoc(collection(db, "applications"), newApp);
+        await addDoc(collection(db, "applications"), newApp);
 
         await addNotification({
             for: 'partner',
@@ -406,7 +437,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             title: 'New Application',
             message: `${user.displayName || 'A new user'} applied for $${newApp.amount.toLocaleString()} (${newApp.loan.name}).`,
         })
-    }, [user, partners, addNotification]);
+    }, [user, partners, addNotification, score]);
     
     const updatePartnerProfile = useCallback(async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
         if (!partner) return;
@@ -438,6 +469,31 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
        });
        await batch.commit();
     }, [isPartner, partner, user, notifications]);
+
+    const deleteAccount = useCallback(async () => {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+            toast({ variant: 'destructive', title: "Error", description: "You must be logged in to delete an account." });
+            return;
+        }
+        try {
+            // Firestore deletion must happen before auth deletion due to rules
+            if (isPartner) {
+                // In a real app, you'd handle associated loans, etc.
+                await deleteDoc(doc(db, "partners", currentUser.uid));
+            } else {
+                await deleteDoc(doc(db, "users", currentUser.uid));
+            }
+            // Now delete the auth user
+            await deleteUser(currentUser);
+            toast({ title: "Account Deleted", description: "Your account has been permanently deleted." });
+            router.push('/');
+        } catch (error: any) {
+            console.error("Error deleting account: ", error);
+            toast({ variant: 'destructive', title: "Deletion Failed", description: error.message || "An error occurred." });
+        }
+
+    }, [isPartner, router]);
     
     const emailSignup = useCallback(async (email: string, pass: string, displayName: string) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
@@ -445,6 +501,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             displayName: displayName.trim(),
             email: userCredential.user.email,
             avatarUrl: null,
+            score: null,
             createdAt: serverTimestamp()
         });
     }, []);
@@ -458,7 +515,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
              await setDoc(userDocRef, { 
                 displayName: result.user.displayName || `User-${result.user.uid.substring(0,5)}`, 
                 email: result.user.email,
-                avatarUrl: result.user.photoURL, 
+                avatarUrl: result.user.photoURL,
+                score: null, 
                 createdAt: serverTimestamp()
             });
         }
@@ -486,7 +544,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = useCallback(async () => {
         await signOut(auth);
-    }, []);
+        clearState();
+        router.push('/');
+    }, [router]);
     
     const contextValue = useMemo(() => ({
         user,
@@ -499,6 +559,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         emailSignup,
         partnerLogin,
         partnerSignup,
+        deleteAccount,
+        score,
+        setScore,
+        connectWalletAndSetScore,
         avatarUrl,
         setAvatarUrl,
         applications,
@@ -514,8 +578,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         markNotificationsAsRead,
         loanActivity,
     }), [
-        user, partner, isPartner, loading, logout, emailLogin, googleLogin, emailSignup, partnerLogin, partnerSignup,
-        avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus, userSignLoan,
+        user, partner, isPartner, loading, logout, emailLogin, googleLogin, emailSignup, partnerLogin, partnerSignup, deleteAccount,
+        score, setScore, connectWalletAndSetScore, avatarUrl, setAvatarUrl, applications, addApplication, updateApplicationStatus, userSignLoan,
         partners, updatePartnerProfile, partnerProducts, addPartnerProduct, removePartnerProduct,
         notifications, markNotificationsAsRead, loanActivity
     ]);

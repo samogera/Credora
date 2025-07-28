@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState } from "react";
@@ -10,7 +11,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { ScrollArea } from "./ui/scroll-area";
@@ -28,10 +28,10 @@ const wallets = [
 interface WalletDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onConnect: () => void;
 }
 
-export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
-  const router = useRouter();
+export function WalletDialog({ open, onOpenChange, onConnect }: WalletDialogProps) {
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [publicKey, setPublicKey] = useState("");
 
@@ -39,15 +39,13 @@ export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
       if (isCustom) {
           setShowCustomInput(true);
       } else {
-          handleConnect(walletName);
+          handleConnection(walletName);
       }
   }
 
-  const handleConnect = async (walletName: string) => {
+  const handleConnection = async (walletName: string) => {
     let toastDescription = `Please approve the connection in your ${walletName} wallet.`;
-    if (walletName.toLowerCase().includes('ledger') || walletName.toLowerCase().includes('trezor')) {
-        toastDescription = `Please connect and unlock your ${walletName} device.`;
-    } else if (walletName.toLowerCase().includes('custom')) {
+    if (walletName.toLowerCase().includes('custom')) {
         if (!publicKey.trim().startsWith('G') || publicKey.trim().length !== 56) {
              toast({
                 variant: 'destructive',
@@ -67,13 +65,12 @@ export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
     setTimeout(() => {
         toast({
             title: "Wallet Connected!",
-            description: "You have successfully authenticated.",
+            description: "Your Credora Score has now been calculated.",
         });
         // Reset state on close
         setShowCustomInput(false);
         setPublicKey("");
-        onOpenChange(false);
-        router.push("/dashboard");
+        onConnect();
     }, 1500);
   };
 
@@ -91,7 +88,7 @@ export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
         <DialogHeader>
           <DialogTitle>{showCustomInput ? 'Enter Public Key' : 'Connect a Stellar Wallet'}</DialogTitle>
           <DialogDescription>
-             {showCustomInput ? 'Please enter your Stellar public address to connect.' : 'Choose your preferred wallet to sign in or create an account.'}
+             {showCustomInput ? 'Please enter your Stellar public address to connect.' : 'Choose your preferred wallet to build your score.'}
           </DialogDescription>
         </DialogHeader>
         {showCustomInput ? (
@@ -108,7 +105,7 @@ export function WalletDialog({ open, onOpenChange }: WalletDialogProps) {
                         autoComplete="off"
                     />
                 </div>
-                 <Button className="w-full" onClick={() => handleConnect("Custom")}>Connect with Public Key</Button>
+                 <Button className="w-full" onClick={() => handleConnection("Custom")}>Connect with Public Key</Button>
                  <Button variant="outline" className="w-full" onClick={() => setShowCustomInput(false)}>Back to Wallet List</Button>
             </div>
         ) : (
