@@ -36,12 +36,11 @@ export default function PartnersPage() {
         if (!selectedLoan || !user) return;
         setIsApplying(true);
 
-        const newApplication: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar' | 'createdAt' | 'score'> = {
+        const newApplication: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar' | 'createdAt' | 'score' | 'partnerId'> = {
             loan: {
                 id: selectedLoan.id,
                 name: selectedLoan.name,
                 partnerName: selectedLoan.partnerName,
-                partnerId: '', // This will be set in the context
             },
             amount: customAmount,
             status: 'Pending' as const,
@@ -157,3 +156,5 @@ export default function PartnersPage() {
     </>
   );
 }
+
+    

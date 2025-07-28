@@ -5,7 +5,7 @@ import { createContext, useState, ReactNode, useEffect, useCallback, useMemo } f
 import { ExplainRiskFactorsOutput } from '@/ai/flows/explain-risk-factors';
 import { db, auth } from '@/lib/firebase';
 import { collection, onSnapshot, doc, updateDoc, addDoc, query, where, getDocs, setDoc, deleteDoc, writeBatch, getDoc, serverTimestamp } from 'firebase/firestore';
-import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, updateProfile, deleteUser } from 'firebase/auth';
+import { onAuthStateChanged, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithRedirect, getRedirectResult, updateProfile, deleteUser } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
@@ -46,6 +46,7 @@ export type LoanActivityItem = {
 export type Application = {
     id:string;
     userId: string;
+    partnerId: string; // New top-level field
     user: {
         displayName: string;
         avatarUrl?: string | null;
@@ -55,7 +56,6 @@ export type Application = {
         id: string;
         name: string;
         partnerName: string;
-        partnerId: string;
     };
     amount: number;
     status: 'Pending' | 'Approved' | 'Denied' | 'Signed';
@@ -95,7 +95,7 @@ interface UserContextType {
     avatarUrl: string | null;
     setAvatarUrl: (url: string) => void;
     applications: Application[];
-    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar' | 'createdAt' | 'score'>) => Promise<void>;
+    addApplication: (app: Omit<Application, 'id' | 'user' | 'userId' | 'userAvatar' | 'createdAt' | 'score' | 'partnerId'>) => Promise<void>;
     updateApplicationStatus: (appId: string, status: 'Approved' | 'Denied') => Promise<void>;
     userSignLoan: (appId: string) => Promise<void>;
     partners: Partner[];
@@ -128,7 +128,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const router = useRouter();
 
     const clearState = useCallback(() => {
-        setUser(null);
+        // Only reset data state, not auth state
         setPartner(null);
         setIsPartner(false);
         setAvatarUrlState(null);
@@ -137,12 +137,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setLoanActivity([]);
         setPartnerProducts([]);
         setScoreState(null);
+        setDataLoading(true);
     }, []);
 
     const logout = useCallback(async () => {
         try {
             await signOut(auth);
             clearState();
+            setUser(null); // Explicitly set user to null
             router.push('/login');
         } catch (error) {
             console.error("Logout failed:", error);
@@ -172,15 +174,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [isPartner, logout]);
     
-    // Auth state listener
+     // Auth state listener
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setLoading(true);
-            setDataLoading(true);
-            clearState();
-
             if (currentUser) {
                 setUser(currentUser);
+                // Check if partner
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
                 const partnerDocSnap = await getDoc(partnerDocRef);
                 
@@ -188,6 +188,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     setPartner({ id: currentUser.uid, ...partnerDocSnap.data() } as Partner);
                     setIsPartner(true);
                 } else {
+                     // Check if user
                     const userDocRef = doc(db, "users", currentUser.uid);
                     const userDocSnap = await getDoc(userDocRef);
                     if (userDocSnap.exists()) {
@@ -195,6 +196,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                         setAvatarUrlState(data.avatarUrl || currentUser.photoURL || null);
                         setScoreState(data.score === undefined ? null : data.score);
                     } else {
+                         // New user from Google Sign-in or first time
                          await setDoc(userDocRef, { 
                            displayName: currentUser.displayName || `User-${currentUser.uid.substring(0,5)}`, 
                            email: currentUser.email,
@@ -207,88 +209,116 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     }
                     setIsPartner(false);
                 }
+            } else {
+                clearState();
+                setUser(null);
             }
+             // This needs to be outside the if/else to ensure it runs on logout too
             setLoading(false);
-            setDataLoading(false);
         });
+
+        // Handle redirect result for Google Sign-in
+        getRedirectResult(auth).catch(error => {
+            console.error("Google Sign-in redirect error:", error);
+            toast({ variant: 'destructive', title: "Google Sign-in Failed", description: "Could not complete sign-in with Google." });
+        });
+
         return () => unsubscribe();
     }, [clearState]);
 
 
-    const addNotification = useCallback(async (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
-        try {
-            await addDoc(collection(db, 'notifications'), { ...notification, read: false, timestamp: serverTimestamp() });
-        } catch (error) {
-            console.error("Error adding notification:", error);
-        }
-    }, []);
-
     // Data listeners
     useEffect(() => {
-        if (loading || !user) return;
+        if (loading || !user) {
+             if (!loading && !user) {
+                // Clear all data if user logs out
+                setApplications([]);
+                setLoanActivity([]);
+                setNotifications([]);
+                setPartners([]);
+                setPartnerProducts([]);
+            }
+            return;
+        };
 
+        setDataLoading(true);
         let unsubs: (() => void)[] = [];
-
-        const notifsQuery = query(collection(db, "notifications"), where("userId", "==", user.uid));
-        unsubs.push(onSnapshot(notifsQuery, (snapshot) => {
-            const allNotifs = snapshot.docs.map(d => ({ 
-                id: d.id, 
-                ...d.data(), 
-                timestamp: d.data().timestamp ? d.data().timestamp.toDate() : new Date() 
-            } as Notification));
-            setNotifications(allNotifs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
-        }));
-
-        if (isPartner) {
-            unsubs.push(onSnapshot(collection(db, "partners", user.uid, "products"), (snapshot) => {
-                setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
-            }));
         
-            const qLoanActivity = query(collection(db, "loanActivity"), where("partnerId", "==", user.uid));
-            unsubs.push(onSnapshot(qLoanActivity, (snapshot) => {
-                const activities = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()}) as LoanActivityItem);
-                setLoanActivity(activities.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
+        const setupListeners = async () => {
+            // Universal listeners
+            const notifsQuery = query(collection(db, "notifications"), where("userId", "==", user.uid));
+            unsubs.push(onSnapshot(notifsQuery, (snapshot) => {
+                const allNotifs = snapshot.docs.map(d => ({ 
+                    id: d.id, 
+                    ...d.data(), 
+                    timestamp: d.data().timestamp ? d.data().timestamp.toDate() : new Date() 
+                } as Notification));
+                setNotifications(allNotifs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
             }));
-            
-            const qApps = query(collection(db, "applications"), where("loan.partnerId", "==", user.uid));
-            unsubs.push(onSnapshot(qApps, async (snapshot) => {
-                const appPromises = snapshot.docs.map(async (d) => {
-                    const appData = d.data();
-                    const userSnap = await getDoc(doc(db, 'users', appData.userId));
-                    const userData = userSnap.exists() ? {
-                        displayName: userSnap.data()?.displayName || 'Unknown User',
-                        avatarUrl: userSnap.data()?.avatarUrl || null,
-                    } : { displayName: 'Unknown User', avatarUrl: null };
-                    return { id: d.id, ...appData, createdAt: appData.createdAt?.toDate(), user: userData } as Application;
-                });
-                const appsData = await Promise.all(appPromises);
-                setApplications(appsData.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
-            }));
-        } else {
-            const qApps = query(collection(db, "applications"), where("userId", "==", user.uid));
-            unsubs.push(onSnapshot(qApps, (snapshot) => {
-                const userApps = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application));
-                setApplications(userApps.sort((a,b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
-            }));
-            
-            const qUserLoans = query(collection(db, "loanActivity"), where("userId", "==", user.uid));
-            unsubs.push(onSnapshot(qUserLoans, (snapshot) => {
-               setLoanActivity(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()}) as LoanActivityItem));
-            }));
+    
+            if (isPartner) {
+                unsubs.push(onSnapshot(doc(db, "partners", user.uid), (doc) => {
+                    if (doc.exists()) {
+                        setPartner({ id: user.uid, ...doc.data() } as Partner);
+                    }
+                }));
 
-            unsubs.push(onSnapshot(collection(db, "partners"), async (snapshot) => {
-                const partnerListPromises = snapshot.docs.map(async (pDoc) => {
-                    const productsRef = collection(db, "partners", pDoc.id, "products");
-                    const productsSnap = await getDocs(productsRef);
-                    const products = productsSnap.docs.map(prodDoc => ({id: prodDoc.id, ...prodDoc.data()}) as LoanProduct);
-                    return { id: pDoc.id, ...pDoc.data(), products } as Partner;
-                });
-                const partnerList = await Promise.all(partnerListPromises);
-                setPartners(partnerList);
-            }));
+                unsubs.push(onSnapshot(collection(db, "partners", user.uid, "products"), (snapshot) => {
+                    setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
+                }));
+            
+                const qLoanActivity = query(collection(db, "loanActivity"), where("partnerId", "==", user.uid));
+                unsubs.push(onSnapshot(qLoanActivity, (snapshot) => {
+                    const activities = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()}) as LoanActivityItem);
+                    setLoanActivity(activities.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
+                }));
+                
+                const qApps = query(collection(db, "applications"), where("partnerId", "==", user.uid));
+                unsubs.push(onSnapshot(qApps, async (snapshot) => {
+                    const appPromises = snapshot.docs.map(async (d) => {
+                        const appData = d.data();
+                        const userSnap = await getDoc(doc(db, 'users', appData.userId));
+                        const userData = userSnap.exists() ? {
+                            displayName: userSnap.data()?.displayName || 'Unknown User',
+                            avatarUrl: userSnap.data()?.avatarUrl || null,
+                        } : { displayName: 'Unknown User', avatarUrl: null };
+                        return { id: d.id, ...appData, createdAt: appData.createdAt?.toDate(), user: userData } as Application;
+                    });
+                    const appsData = await Promise.all(appPromises);
+                    setApplications(appsData.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
+                }));
+
+            } else { // Regular user listeners
+                const qApps = query(collection(db, "applications"), where("userId", "==", user.uid));
+                unsubs.push(onSnapshot(qApps, (snapshot) => {
+                    const userApps = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application));
+                    setApplications(userApps.sort((a,b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
+                }));
+                
+                const qUserLoans = query(collection(db, "loanActivity"), where("userId", "==", user.uid));
+                unsubs.push(onSnapshot(qUserLoans, (snapshot) => {
+                   setLoanActivity(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()}) as LoanActivityItem));
+                }));
+    
+                unsubs.push(onSnapshot(collection(db, "partners"), async (snapshot) => {
+                    const partnerListPromises = snapshot.docs.map(async (pDoc) => {
+                        const productsRef = collection(db, "partners", pDoc.id, "products");
+                        const productsSnap = await getDocs(productsRef);
+                        const products = productsSnap.docs.map(prodDoc => ({id: prodDoc.id, ...prodDoc.data()}) as LoanProduct);
+                        return { id: pDoc.id, ...pDoc.data(), products } as Partner;
+                    });
+                    const partnerList = await Promise.all(partnerListPromises);
+                    setPartners(partnerList);
+                }));
+            }
+            setDataLoading(false);
         }
+        
+        setupListeners();
 
-        return () => unsubs.forEach(unsub => unsub());
+        return () => {
+            unsubs.forEach(unsub => unsub());
+        }
     }, [user, isPartner, loading]);
 
     const handleLoginRedirect = useCallback(() => {
@@ -306,8 +336,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, [user, isPartner, score, loading, router]);
 
     useEffect(() => {
-        handleLoginRedirect();
-    },[handleLoginRedirect])
+       if(!loading && user) {
+           handleLoginRedirect();
+       }
+    },[user, loading, isPartner, score, handleLoginRedirect])
 
     const setScore = async (score: number | null) => {
         if (!user || isPartner) return;
@@ -338,7 +370,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Avatar updated!" });
     }, [user, isPartner]);
 
-    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score'>) => {
+    const addNotification = useCallback(async (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
+        try {
+            await addDoc(collection(db, 'notifications'), { ...notification, read: false, timestamp: serverTimestamp() });
+        } catch (error) {
+            console.error("Error adding notification:", error);
+        }
+    }, []);
+
+    const addApplication = useCallback(async (app: Omit<Application, 'id' | 'user' | 'userId' | 'createdAt' | 'score' | 'partnerId'>) => {
         if (!user || score === null) throw new Error("User not logged in or score not calculated.");
         
         const targetPartner = partners.find(p => p.name === app.loan.partnerName);
@@ -348,7 +388,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             ...app,
             score: score,
             userId: user.uid,
-            loan: { ...app.loan, partnerId: targetPartner.id },
+            partnerId: targetPartner.id, // Add top-level partnerId
+            loan: { 
+                id: app.loan.id,
+                name: app.loan.name,
+                partnerName: app.loan.partnerName,
+            },
             createdAt: serverTimestamp()
         };
         await addDoc(collection(db, "applications"), newApp);
@@ -371,13 +416,27 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         await updateDoc(appRef, { status });
         
         if (status === 'Approved') {
+             // Create loan activity on approval
+            const loanActivityData = {
+                user: { displayName: appToUpdate.user.displayName || 'Unknown User' },
+                userId: appToUpdate.userId,
+                partnerId: appToUpdate.partnerId,
+                partnerName: appToUpdate.loan.partnerName,
+                amount: appToUpdate.amount,
+                repaid: 0,
+                interestAccrued: 0,
+                status: 'Active',
+                createdAt: serverTimestamp(),
+            };
+            await addDoc(collection(db, 'loanActivity'), loanActivityData);
+
             await addNotification({
                 for: 'user',
                 userId: appToUpdate.userId,
                 type: 'approval',
                 title: `Loan Approved`,
-                message: `Your application for the ${appToUpdate.loan.name} is approved! Sign the contract to receive funds.`,
-                href: '/dashboard'
+                message: `Your application for the ${appToUpdate.loan.name} is approved! You can track it in 'My Loans'.`,
+                href: '/dashboard/my-loans'
             });
         } else { // Denied
             await addNotification({
@@ -392,48 +451,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, [applications, addNotification]);
 
     const userSignLoan = useCallback(async (appId: string) => {
+        // This function is now less critical as loan activity is created on approval
         const appToSign = applications.find(a => a.id === appId);
-        if (!appToSign || appToSign.status !== 'Approved') {
-            throw new Error("This loan cannot be signed at this time.");
-        }
+        if (!appToSign) throw new Error("This loan cannot be signed.");
 
-        const batch = writeBatch(db);
         const appRef = doc(db, "applications", appId);
-        batch.update(appRef, { status: 'Signed' });
-
-        const loanActivityRef = doc(collection(db, 'loanActivity'));
-        batch.set(loanActivityRef, {
-            user: { displayName: appToSign.user.displayName || 'Unknown User' },
-            userId: appToSign.userId,
-            partnerId: appToSign.loan.partnerId,
-            partnerName: appToSign.loan.partnerName,
-            amount: appToSign.amount,
-            repaid: 0,
-            interestAccrued: 0,
-            status: 'Active',
-            createdAt: serverTimestamp(),
-        });
-        
-        await batch.commit();
-
-        await addNotification({
-            for: 'partner',
-            userId: appToSign.loan.partnerId,
-            type: 'info',
-            title: 'Loan Activated',
-            message: `${appToSign.user.displayName} has signed the contract. The loan is now active.`,
-            href: '/dashboard/partner-admin'
-        });
-        await addNotification({
-            for: 'user',
-            userId: appToSign.userId,
-            type: 'info',
-            title: 'Funds Disbursed!',
-            message: `Your funds for your ${appToSign.loan.name} have been disbursed. You can track your loan in the 'My Loans' section.`,
-            href: '/dashboard/my-loans'
-        })
-
-    }, [applications, addNotification]);
+        await updateDoc(appRef, { status: 'Signed' });
+    }, [applications]);
     
     const updatePartnerProfile = useCallback(async (profile: Partial<Omit<Partner, 'products' | 'description' | 'id'>>) => {
         if (!user || !isPartner) return;
@@ -472,7 +496,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     const googleLogin = useCallback(async () => {
         const provider = new GoogleAuthProvider();
-        await signInWithPopup(auth, provider);
+        await signInWithRedirect(auth, provider);
     }, []);
     
     const emailLogin = useCallback(async (email: string, pass: string) => {
@@ -539,3 +563,5 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
+
+    

@@ -27,9 +27,8 @@ import { UserContext, Application } from '@/context/user-context';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function PartnerAdminPage() {
-    const { applications, updateApplicationStatus } = useContext(UserContext);
+    const { applications, updateApplicationStatus, dataLoading } = useContext(UserContext);
     const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
-    const [isSigning, setIsSigning] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
 
     const handleDecision = (appToUpdate: Application, decision: 'Approved' | 'Denied') => {
@@ -39,18 +38,6 @@ export default function PartnerAdminPage() {
             description: `The application from ${appToUpdate.user.displayName} has been ${decision.toLowerCase()}.`
         });
     };
-    
-    const handleSignContract = () => {
-        setIsSigning(true);
-        setTimeout(() => {
-            setIsSigning(false);
-            setSelectedApplication(null);
-            toast({
-                title: "Contract Signed!",
-                description: "The loan agreement has been executed on the Soroban smart contract.",
-            });
-        }, 2000);
-    }
     
     const handleViewProfile = (app: Application) => {
         setSelectedApplication(app);
@@ -120,7 +107,13 @@ export default function PartnerAdminPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {pendingApplications.length > 0 ? pendingApplications.map(app => (
+                                {dataLoading ? (
+                                    <TableRow>
+                                        <TableCell colSpan={5}>
+                                            <Skeleton className="h-10 w-full" />
+                                        </TableCell>
+                                    </TableRow>
+                                ) : pendingApplications.length > 0 ? pendingApplications.map(app => (
                                     <TableRow key={app.id}>
                                         <TableCell className="font-medium flex items-center gap-2">
                                             <Avatar className='h-8 w-8'>
@@ -236,28 +229,8 @@ export default function PartnerAdminPage() {
                  </DialogContent>
             </Dialog>
 
-             <Dialog open={!!selectedApplication && !isProfileOpen && selectedApplication.status === 'Approved'} onOpenChange={(isOpen) => !isOpen && setSelectedApplication(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <FileSignature /> Finalize Loan Agreement
-                        </DialogTitle>
-                        <DialogDescription>
-                            To finalize the loan for {selectedApplication?.user.displayName}, you must sign the Soroban smart contract. This creates a verifiable agreement on the Stellar network.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4 text-sm">
-                       <p>This action is irreversible and will transfer the loan amount to the user's wallet upon their final confirmation.</p>
-                       <p className="font-medium text-destructive">You are signing to approve a loan of ${selectedApplication?.amount.toLocaleString()} for {selectedApplication?.loan.name}.</p>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setSelectedApplication(null)} disabled={isSigning}>Cancel</Button>
-                        <Button onClick={handleSignContract} disabled={isSigning}>
-                            {isSigning ? "Executing..." : "Sign & Execute Contract"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </>
     );
 }
+
+    
