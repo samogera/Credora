@@ -92,7 +92,7 @@ function NotificationItem({ notification, isLast }: { notification: Notification
     
     return (
       <>
-        <Link href={notification.href} passHref>
+        <Link href={notification.href || '/dashboard/partner-admin'} passHref>
           <div className="flex items-start gap-4 p-4 hover:bg-muted/50 rounded-lg cursor-pointer">
               <Avatar className="h-10 w-10 border">
                   <AvatarFallback>{getIcon(notification.type)}</AvatarFallback>
