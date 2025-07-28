@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useContext, useEffect } from 'react';
@@ -15,7 +14,7 @@ import { UserContext } from "@/context/user-context";
 import { toast } from "@/hooks/use-toast";
 
 export default function SignupPartnerPage() {
-    const { partnerSignup, isPartner, loading: authLoading } = useContext(UserContext);
+    const { partnerSignup, isPartner, loading } = useContext(UserContext);
     const [companyName, setCompanyName] = useState("");
     const [website, setWebsite] = useState("");
     const [email, setEmail] = useState("");
@@ -24,10 +23,10 @@ export default function SignupPartnerPage() {
     const router = useRouter();
 
     useEffect(() => {
-        if (!authLoading && isPartner) {
+        if (!loading && isPartner) {
             router.push('/dashboard/partner-admin');
         }
-    }, [isPartner, authLoading, router]);
+    }, [isPartner, loading, router]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -58,7 +57,7 @@ export default function SignupPartnerPage() {
         }
     };
 
-    const isLoading = authLoading || isSubmitting;
+    const isLoading = loading || isSubmitting;
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background py-12">
@@ -118,3 +117,5 @@ export default function SignupPartnerPage() {
     </div>
   );
 }
+
+    

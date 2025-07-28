@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useContext, useEffect }from "react";
@@ -15,17 +14,17 @@ import { UserContext } from "@/context/user-context";
 import { toast } from "@/hooks/use-toast";
 
 export default function LoginPartnerPage() {
-    const { partnerLogin, isPartner, loading: authLoading } = useContext(UserContext);
+    const { partnerLogin, isPartner, loading } = useContext(UserContext);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const router = useRouter();
 
     useEffect(() => {
-        if (!authLoading && isPartner) {
+        if (!loading && isPartner) {
             router.push('/dashboard/partner-admin');
         }
-    }, [isPartner, authLoading, router]);
+    }, [isPartner, loading, router]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -37,7 +36,6 @@ export default function LoginPartnerPage() {
         try {
             await partnerLogin(email, password);
             // The useEffect will handle the redirect
-            toast({ title: "Login Successful!" });
         } catch (error: any) {
             toast({
                 variant: 'destructive',
@@ -49,7 +47,7 @@ export default function LoginPartnerPage() {
         }
     }
 
-  const isLoading = authLoading || isSubmitting;
+  const isLoading = loading || isSubmitting;
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
@@ -99,3 +97,5 @@ export default function LoginPartnerPage() {
     </div>
   );
 }
+
+    
