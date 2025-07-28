@@ -16,7 +16,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { CreditCard, Landmark, Wallet, Smartphone } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 // TODO: REPLACE WITH REAL SOROBAN CALL
 import { repayLoan, getLoan } from '@/lib/soroban-mock';
@@ -25,15 +26,18 @@ export default function MyLoansPage() {
     const { loanActivity, user, refreshLoanActivity } = useContext(UserContext);
     const [selectedLoan, setSelectedLoan] = useState<LoanActivityItem | null>(null);
     const [isRepaying, setIsRepaying] = useState(false);
+    const [repaymentAmount, setRepaymentAmount] = useState(0);
 
     const userLoans = loanActivity.filter(loan => loan.userId === user?.uid);
 
     const handleRepayClick = (loan: LoanActivityItem) => {
+        const remaining = loan.amount - (loan.repaid || 0) + (loan.interestAccrued || 0);
+        setRepaymentAmount(remaining);
         setSelectedLoan(loan);
     }
 
     const handlePayment = async () => {
-        if (!selectedLoan) return;
+        if (!selectedLoan || repaymentAmount <= 0) return;
         setIsRepaying(true);
         toast({
             title: "Submitting to Soroban...",
@@ -42,7 +46,7 @@ export default function MyLoansPage() {
 
         try {
             // TODO: REPLACE WITH REAL SOROBAN CALL
-            const txHash = await repayLoan(parseInt(selectedLoan.sorobanLoanId!, 10), selectedLoan.amount - (selectedLoan.repaid || 0));
+            const txHash = await repayLoan(parseInt(selectedLoan.sorobanLoanId!, 10), repaymentAmount);
 
             // Refresh the loan state from the mock DB to show progress
             await refreshLoanActivity();
@@ -55,7 +59,7 @@ export default function MyLoansPage() {
 
             toast({
                 title: "Payment Successful!",
-                description: `Repayment for ${selectedLoan.partnerName} confirmed. Mock TX: ${txHash.substring(0, 20)}...`,
+                description: `Repayment of $${repaymentAmount.toLocaleString()} for ${selectedLoan.partnerName} confirmed. Mock TX: ${txHash.substring(0, 20)}...`,
             });
             
             if (updatedLoan?.status === 'repaid') {
@@ -77,9 +81,13 @@ export default function MyLoansPage() {
     }
 
     const getStatusVariant = (status: string) => {
-        if (status === 'Active') return 'default';
+        if (status === 'Active' || status === 'active') return 'default';
         if (status === 'Paid Off' || status === 'repaid') return 'secondary';
         return 'destructive';
+    }
+
+    const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
     }
 
     return (
@@ -100,7 +108,8 @@ export default function MyLoansPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Lender</TableHead>
-                                    <TableHead>Total Amount</TableHead>
+                                    <TableHead>Principal Amount</TableHead>
+                                    <TableHead>Total Repayment</TableHead>
                                     <TableHead>Repayment Progress</TableHead>
                                     <TableHead className="text-center">Status</TableHead>
                                     <TableHead className="text-right">Action</TableHead>
@@ -108,21 +117,24 @@ export default function MyLoansPage() {
                             </TableHeader>
                             <TableBody>
                                 {userLoans.length > 0 ? userLoans.map(loan => {
+                                    const interest = loan.interestAccrued || 0;
+                                    const totalToRepay = loan.amount + interest;
                                     const repaid = loan.repaid || 0;
-                                    const progress = (repaid / loan.amount) * 100;
+                                    const progress = (repaid / totalToRepay) * 100;
                                     return (
                                         <TableRow key={loan.id}>
                                             <TableCell className="font-medium">{loan.partnerName}</TableCell>
-                                            <TableCell>${loan.amount.toLocaleString()}</TableCell>
+                                            <TableCell>{formatCurrency(loan.amount)}</TableCell>
+                                            <TableCell>{formatCurrency(totalToRepay)}</TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-3">
                                                     <Progress value={progress} className="w-[150px]" />
                                                     <span className="text-xs text-muted-foreground">{Math.round(progress)}%</span>
                                                 </div>
-                                                <p className="text-xs text-muted-foreground">${repaid.toLocaleString()} / ${loan.amount.toLocaleString()}</p>
+                                                <p className="text-xs text-muted-foreground">{formatCurrency(repaid)} / {formatCurrency(totalToRepay)}</p>
                                             </TableCell>
                                             <TableCell className="text-center">
-                                                <Badge variant={getStatusVariant(loan.status)}>{loan.status === 'repaid' ? 'Paid Off' : loan.status}</Badge>
+                                                <Badge variant={getStatusVariant(loan.status)}>{loan.status === 'repaid' ? 'Paid Off' : 'Active'}</Badge>
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <Button size="sm" onClick={() => handleRepayClick(loan)} disabled={loan.status === 'Paid Off' || loan.status === 'repaid'}>
@@ -133,7 +145,7 @@ export default function MyLoansPage() {
                                     )
                                 }) : (
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">You have no loans.</TableCell>
+                                        <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">You have no loans.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -146,24 +158,32 @@ export default function MyLoansPage() {
                     <DialogHeader>
                         <DialogTitle>Make a Repayment</DialogTitle>
                         <DialogDescription>
-                            Choose your preferred method to repay your loan from {selectedLoan?.partnerName}. Your payment will be a USDC transfer on Stellar.
+                            Enter the amount you wish to repay for your loan from {selectedLoan?.partnerName}. Your payment will be a simulated USDC transfer on Stellar.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="py-4 space-y-4">
-                        <p className="text-center text-lg">
-                            Amount Due: <span className="font-bold text-primary">${(selectedLoan ? selectedLoan.amount - (selectedLoan.repaid || 0) : 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </p>
-                        <div className="grid grid-cols-2 gap-4">
-                            <Button variant="outline" className="h-20 flex-col gap-2"><Wallet className="h-6 w-6" />Stellar Wallet</Button>
-                            <Button variant="outline" className="h-20 flex-col gap-2"><CreditCard className="h-6 w-6" />Credit/Debit Card</Button>
-                            <Button variant="outline" className="h-20 flex-col gap-2"><Landmark className="h-6 w-6" />PayPal</Button>
-                            <Button variant="outline" className="h-20 flex-col gap-2"><Smartphone className="h-6 w-6" />Mobile Money</Button>
+                       <div className="grid gap-2 text-center">
+                            <p className="text-sm text-muted-foreground">Amount Remaining</p>
+                            <p className="font-bold text-primary text-2xl">
+                                {selectedLoan ? formatCurrency(selectedLoan.amount + (selectedLoan.interestAccrued || 0) - (selectedLoan.repaid || 0)) : '$0.00'}
+                            </p>
+                       </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="repayment-amount">Repayment Amount</Label>
+                            <Input 
+                                id="repayment-amount"
+                                type="number"
+                                value={repaymentAmount}
+                                onChange={(e) => setRepaymentAmount(parseFloat(e.target.value))}
+                                max={selectedLoan ? selectedLoan.amount + (selectedLoan.interestAccrued || 0) - (selectedLoan.repaid || 0) : 0}
+                                min="0"
+                            />
                         </div>
                     </div>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setSelectedLoan(null)} disabled={isRepaying}>Cancel</Button>
-                        <Button onClick={handlePayment} disabled={isRepaying}>
-                            {isRepaying ? 'Processing...' : 'Pay Now'}
+                        <Button onClick={handlePayment} disabled={isRepaying || repaymentAmount <= 0}>
+                            {isRepaying ? 'Processing...' : `Pay ${formatCurrency(repaymentAmount)}`}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useContext } from 'react';
+import { useState, useContext, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -17,15 +17,21 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-import { Slider } from '@/components/ui/slider';
 import { UserContext, LoanProduct, Application } from '@/context/user-context';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 
 export default function PartnersPage() {
     const { partners, addApplication, user, score } = useContext(UserContext);
     const [selectedLoan, setSelectedLoan] = useState<LoanProduct & { partnerName: string } | null>(null);
     const [isApplying, setIsApplying] = useState(false);
-    const [customAmount, setCustomAmount] = useState(500);
+    const [customAmount, setCustomAmount] = useState<number>(1000);
+    
+    useEffect(() => {
+        if (selectedLoan) {
+            setCustomAmount(1000); // Reset amount when a new loan is selected
+        }
+    }, [selectedLoan]);
 
     const handleApplyClick = (product: LoanProduct, partnerName: string) => {
         setSelectedLoan({ ...product, partnerName });
@@ -41,6 +47,8 @@ export default function PartnersPage() {
                 id: selectedLoan.id,
                 name: selectedLoan.name,
                 partnerName: selectedLoan.partnerName,
+                interestRate: parseFloat(selectedLoan.rate),
+                term: selectedLoan.term
             },
             amount: customAmount,
             status: 'Pending' as const,
@@ -63,6 +71,31 @@ export default function PartnersPage() {
     }
     
     const canApply = user && score !== null;
+
+    const { monthlyPayment, totalRepayment, totalInterest } = useMemo(() => {
+        if (!selectedLoan) return { monthlyPayment: 0, totalRepayment: 0, totalInterest: 0 };
+        const rate = parseFloat(selectedLoan.rate) / 100 / 12; // Monthly interest rate
+        const term = selectedLoan.term;
+        const principal = customAmount;
+
+        if (rate === 0) { // Simple loan calculation if interest is 0
+            return {
+                monthlyPayment: principal / term,
+                totalRepayment: principal,
+                totalInterest: 0
+            }
+        }
+        
+        const monthly = principal * rate * Math.pow(1 + rate, term) / (Math.pow(1 + rate, term) - 1);
+        const total = monthly * term;
+        const interest = total - principal;
+        
+        return {
+            monthlyPayment: monthly,
+            totalRepayment: total,
+            totalInterest: interest,
+        };
+    }, [customAmount, selectedLoan]);
 
   return (
     <>
@@ -115,31 +148,36 @@ export default function PartnersPage() {
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-4">
-                     <div className="space-y-4">
-                        <Label htmlFor="amount">Loan Amount: <span className="font-bold text-primary">{formatCurrency(customAmount)}</span></Label>
-                        <Slider
+                     <div className="space-y-2">
+                        <Label htmlFor="amount">Loan Amount</Label>
+                        <Input 
                             id="amount"
-                            min={500}
-                            max={selectedLoan?.maxAmount || 500}
-                            step={100}
-                            value={[customAmount]}
-                            onValueChange={(value) => setCustomAmount(value[0])}
+                            type="number"
+                            value={customAmount}
+                            onChange={(e) => setCustomAmount(Math.max(0, Math.min(selectedLoan?.maxAmount || 0, parseInt(e.target.value) || 0)))}
+                            placeholder="e.g. 1000"
                         />
                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>$500</span>
-                            <span>{formatCurrency(selectedLoan?.maxAmount || 0)}</span>
+                            <span>Min: {formatCurrency(500)}</span>
+                            <span>Max: {formatCurrency(selectedLoan?.maxAmount || 0)}</span>
                         </div>
                      </div>
-                     <div className="grid grid-cols-2 gap-4">
-                         <div className="space-y-1">
-                            <Label>Interest Rate</Label>
-                            <Input defaultValue={selectedLoan?.rate} disabled />
-                         </div>
-                         <div className="space-y-1">
-                            <Label>Max Amount</Label>
-                            <Input defaultValue={formatCurrency(selectedLoan?.maxAmount || 0)} disabled />
-                         </div>
-                    </div>
+                     <Alert>
+                        <AlertDescription className="grid grid-cols-3 gap-2 text-center">
+                           <div>
+                                <p className="text-xs text-muted-foreground">Monthly Payment</p>
+                                <p className="font-semibold">{formatCurrency(monthlyPayment)}</p>
+                           </div>
+                           <div>
+                                <p className="text-xs text-muted-foreground">Total Interest</p>
+                                <p className="font-semibold">{formatCurrency(totalInterest)}</p>
+                           </div>
+                            <div>
+                                <p className="text-xs text-muted-foreground">Total Repayment</p>
+                                <p className="font-semibold">{formatCurrency(totalRepayment)}</p>
+                           </div>
+                        </AlertDescription>
+                     </Alert>
                     <div className="space-y-1">
                         <Label htmlFor="purpose">Loan Purpose (Optional)</Label>
                         <Input id="purpose" placeholder="e.g., Business expansion, personal project" />
@@ -147,7 +185,7 @@ export default function PartnersPage() {
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setSelectedLoan(null)} disabled={isApplying}>Cancel</Button>
-                    <Button onClick={handleApplicationSubmit} disabled={isApplying || !user}>
+                    <Button onClick={handleApplicationSubmit} disabled={isApplying || !user || customAmount <= 0}>
                         {isApplying ? "Submitting..." : !user ? "Please log in" : `Apply for ${formatCurrency(customAmount)}`}
                     </Button>
                 </DialogFooter>
@@ -156,5 +194,3 @@ export default function PartnersPage() {
     </>
   );
 }
-
-    

@@ -60,6 +60,8 @@ export type Application = {
         name: string;
         partnerName: string;
         partnerId: string;
+        interestRate: number;
+        term: number;
     };
     amount: number;
     status: 'Pending' | 'Approved' | 'Denied' | 'Signed';
@@ -201,24 +203,32 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }, [clearState]);
 
     const refreshLoanActivity = useCallback(async () => {
-        if (!user || loanActivity.length === 0) return;
-
-        const updatedLoanActivity = await Promise.all(loanActivity.map(async (loan) => {
+        if (!user) return;
+    
+        const collectionRef = collection(db, "loanActivity");
+        const q = isPartner 
+            ? query(collectionRef, where("partnerId", "==", user.uid))
+            : query(collectionRef, where("userId", "==", user.uid));
+            
+        const snapshot = await getDocs(q);
+        
+        const updatedLoanActivity = await Promise.all(snapshot.docs.map(async (doc) => {
+            const loan = doc.data() as LoanActivityItem;
             if (!loan.sorobanLoanId) return loan;
             // TODO: REPLACE WITH REAL SOROBAN CALL
             const onChainLoan = await getLoan(parseInt(loan.sorobanLoanId, 10));
-            if (onChainLoan) {
-                return {
-                    ...loan,
-                    repaid: onChainLoan.repaid,
-                    status: onChainLoan.status,
-                };
-            }
-            return loan;
+            return {
+                ...loan,
+                repaid: onChainLoan?.repaid ?? loan.repaid,
+                status: onChainLoan?.status ?? loan.status,
+                id: doc.id, // Ensure ID is preserved
+                createdAt: loan.createdAt
+            };
         }));
-        setLoanActivity(updatedLoanActivity);
-
-    }, [user, loanActivity]);
+    
+        setLoanActivity(updatedLoanActivity.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
+    
+    }, [user, isPartner]);
     
      // Data fetching useEffect based on user role
     useEffect(() => {
@@ -395,7 +405,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const notificationData = {
             for: 'partner' as const,
             userId: targetPartner.id,
-            type: 'new_application' as const,
+            type: 'new_application'as const,
             title: 'New Application',
             message: `${user.displayName || 'A user'} applied for $${newApp.amount.toLocaleString()} (${newApp.loan.name}).`,
             href: `/dashboard/partner-admin`,
@@ -458,13 +468,22 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         
         const appData = appDoc.data() as Application;
         
-        const batch = writeBatch(db);
-        batch.update(appRef, { status: 'Signed' });
-
         try {
             // TODO: REPLACE WITH REAL SOROBAN CALL
-            const txHash = await createLoan(appData.loan.partnerId, appData.user?.walletAddress || '', appData.amount);
+            const txHash = await createLoan(
+                appData.loan.partnerId, 
+                appData.user?.walletAddress || '', 
+                appData.amount,
+                appData.loan.interestRate,
+                appData.loan.term
+            );
             const loanId = txHash.split('-').pop(); // Extract ID from mock hash
+
+            const rate = appData.loan.interestRate / 100 / 12;
+            const term = appData.loan.term;
+            const monthlyPayment = appData.amount * rate * Math.pow(1 + rate, term) / (Math.pow(1 + rate, term) - 1);
+            const totalRepayment = monthlyPayment * term;
+            const totalInterest = totalRepayment - appData.amount;
 
             const loanActivityData: Omit<LoanActivityItem, 'id' | 'createdAt'> = {
                 sorobanLoanId: loanId,
@@ -474,9 +493,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 partnerName: appData.loan.partnerName,
                 amount: appData.amount,
                 repaid: 0,
-                interestAccrued: 0,
+                interestAccrued: totalInterest,
                 status: 'Active',
             };
+
+            const batch = writeBatch(db);
+            batch.update(appRef, { status: 'Signed' });
+            
             const loanActivityRef = doc(collection(db, 'loanActivity'));
             batch.set(loanActivityRef, {...loanActivityData, createdAt: serverTimestamp()});
 

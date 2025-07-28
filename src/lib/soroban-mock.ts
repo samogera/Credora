@@ -19,6 +19,8 @@ export interface Loan {
   borrower: Address;
   amount: number;
   repaid: number;
+  interestRate: number; // Annual percentage rate
+  term: number; // in months
   status: 'active' | 'repaid' | 'defaulted';
 }
 
@@ -43,6 +45,8 @@ export const initMockSoroban = () => {
       borrower: 'GABC...',
       amount: 500,
       repaid: 0,
+      interestRate: 10,
+      term: 12,
       status: 'active'
     });
   }
@@ -70,7 +74,9 @@ export const getScore = async (userAddress: Address): Promise<Score> => {
 export const createLoan = async (
   lender: Address,
   borrower: Address,
-  amount: number
+  amount: number,
+  interestRate: number,
+  term: number,
 ): Promise<TxHash> => {
   await simulateNetworkDelay();
   
@@ -81,6 +87,8 @@ export const createLoan = async (
     borrower,
     amount,
     repaid: 0,
+    interestRate,
+    term,
     status: 'active'
   });
   
@@ -97,10 +105,14 @@ export const repayLoan = async (loanId: number, amount: number): Promise<TxHash>
   
   const loan = mockDb.loans.get(loanId);
   if (!loan) throw new Error('Loan not found');
+
+  const monthlyRate = loan.interestRate / 100 / 12;
+  const totalRepayment = loan.amount * (1 + monthlyRate * loan.term);
   
   loan.repaid += amount;
-  if (loan.repaid >= loan.amount) {
+  if (loan.repaid >= totalRepayment) {
     loan.status = 'repaid';
+    loan.repaid = totalRepayment; // Cap repayment at total
   }
   
   return `mock-tx-hash-repay-${loanId}`;
