@@ -125,7 +125,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [partnerProducts, setPartnerProducts] = useState<LoanProduct[]>([]);
     const [score, setScoreState] = useState<number | null>(null);
 
-    const loading = !authInitialized;
+    const loading = !authInitialized || dataLoading;
     const router = useRouter();
 
     const clearState = useCallback(() => {
@@ -140,6 +140,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setPartnerProducts([]);
         setScoreState(null);
         setDataLoading(true);
+        setAuthInitialized(false);
     }, []);
 
     const logout = useCallback(async () => {
@@ -171,138 +172,146 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [isPartner, logout]);
     
-    // Step 1: Handle Auth State Change and determine user role
+    // Step 1: Handle Auth State Change
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            clearState();
-            if (!currentUser) {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            if (currentUser) {
+                if (user?.uid !== currentUser.uid) { // only reset if user is different
+                    clearState();
+                    setUser(currentUser);
+                } else {
+                    setAuthInitialized(true); // User is the same, just ensure auth is initialized
+                }
+            } else {
+                clearState();
                 setAuthInitialized(true);
                 setDataLoading(false);
-                return;
-            }
-    
-            setUser(currentUser);
-            const partnerDocRef = doc(db, "partners", currentUser.uid);
-            const userDocRef = doc(db, "users", currentUser.uid);
-            
-            try {
-                const partnerDocSnap = await getDoc(partnerDocRef);
-                
-                if (partnerDocSnap.exists()) {
-                    setIsPartner(true);
-                    setPartner({ id: currentUser.uid, ...partnerDocSnap.data() } as Partner);
-                } else {
-                    setIsPartner(false);
-                    const userDocSnap = await getDoc(userDocRef);
-                    if (userDocSnap.exists()) {
-                       const data = userDocSnap.data();
-                       setAvatarUrlState(data.avatarUrl || currentUser.photoURL || null);
-                       setScoreState(data.score === undefined ? null : data.score);
-                    } else {
-                        await setDoc(userDocRef, { 
-                           displayName: currentUser.displayName || `User-${currentUser.uid.substring(0,5)}`, 
-                           email: currentUser.email,
-                           avatarUrl: currentUser.photoURL || null, 
-                           score: null,
-                           createdAt: serverTimestamp()
-                       });
-                       setScoreState(null);
-                       setAvatarUrlState(currentUser.photoURL || null);
-                    }
-                }
-            } catch (error) {
-                console.error("Error fetching user/partner role:", error);
-                toast({ variant: 'destructive', title: 'Authentication Error', description: 'Could not determine user role.'});
-                await logout();
-            } finally {
-                setAuthInitialized(true);
-                setDataLoading(false); // Role determined, core data is loaded
             }
         });
-        
         return () => unsubscribe();
-    }, [clearState, logout]);
-
-    // Step 2: Set up data listeners based on role. These run only after auth and role check is complete.
+    }, [user, clearState]);
+    
+    // Step 2: Determine user role and load initial data (user profile or partner profile)
     useEffect(() => {
-        if (loading || dataLoading) return; // Wait for auth and role check
-
-        let unsubscribers: (() => void)[] = [];
-
-        if (user) {
-            // Notifications listener for both roles
-            const notifsQuery = query(collection(db, "notifications"), where("userId", "==", user.uid));
-            const unsubNotifs = onSnapshot(notifsQuery, (snapshot) => {
-                const allNotifs = snapshot.docs.map(d => ({ 
-                    id: d.id, 
-                    ...d.data(), 
-                    timestamp: d.data().timestamp ? d.data().timestamp.toDate() : new Date() 
-                } as Notification));
-                setNotifications(allNotifs.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime()));
-            }, (error) => console.error("Notifications listener error: ", error));
-            unsubscribers.push(unsubNotifs);
-
-            if (isPartner) {
-                // Partner-specific listeners
-                const unsubPartnerProducts = onSnapshot(collection(db, "partners", user.uid, "products"), (snapshot) => {
-                    setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
-                }, (error) => console.error("Partner products listener error: ", error));
-                unsubscribers.push(unsubPartnerProducts);
-            
-                const qLoanActivity = query(collection(db, "loanActivity"), where("partnerId", "==", user.uid));
-                const unsubLoanActivity = onSnapshot(qLoanActivity, (snapshot) => {
-                    setLoanActivity(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()}) as LoanActivityItem));
-                }, (error) => console.error("Loan activity listener error: ", error));
-                unsubscribers.push(unsubLoanActivity);
-
-                const qApps = query(collection(db, "applications"), where("loan.partnerId", "==", user.uid));
-                const unsubApps = onSnapshot(qApps, async (snapshot) => {
-                    const appPromises = snapshot.docs.map(async (d) => {
-                        const appData = d.data();
-                        const userSnap = await getDoc(doc(db, 'users', appData.userId));
-                        const userData = userSnap.exists() ? {
-                            displayName: userSnap.data()?.displayName || 'Unknown User',
-                            avatarUrl: userSnap.data()?.avatarUrl || null,
-                        } : { displayName: 'Unknown User', avatarUrl: null };
-                        return { id: d.id, ...appData, createdAt: appData.createdAt?.toDate(), user: userData } as Application;
-                    });
-                    const appsData = await Promise.all(appPromises);
-                    setApplications(appsData);
-                }, (error) => console.error("Partner Applications listener error: ", error));
-                unsubscribers.push(unsubApps);
-
+        if (!user || !authInitialized) return;
+    
+        let isCancelled = false;
+        const fetchRoleAndInitialData = async () => {
+            setDataLoading(true);
+            const partnerDocRef = doc(db, "partners", user.uid);
+            const partnerDocSnap = await getDoc(partnerDocRef);
+    
+            if (isCancelled) return;
+    
+            if (partnerDocSnap.exists()) {
+                setIsPartner(true);
+                setPartner({ id: user.uid, ...partnerDocSnap.data() } as Partner);
             } else {
-                // User-specific listeners
-                const qApps = query(collection(db, "applications"), where("userId", "==", user.uid));
-                const unsubApps = onSnapshot(qApps, (snapshot) => {
-                    setApplications(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application)));
-                }, (error) => console.error("User Applications listener error: ", error));
-                unsubscribers.push(unsubApps);
-                
-                const qUserLoans = query(collection(db, "loanActivity"), where("userId", "==", user.uid));
-                const unsubUserLoans = onSnapshot(qUserLoans, (snapshot) => {
-                   setLoanActivity(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()}) as LoanActivityItem));
-                }, (error) => console.error("User Loan activity listener error: ", error));
-                unsubscribers.push(unsubUserLoans);
-
-                const unsubPartners = onSnapshot(collection(db, "partners"), async (snapshot) => {
-                    const partnerListPromises = snapshot.docs.map(async (pDoc) => {
-                        const productsRef = collection(db, "partners", pDoc.id, "products");
-                        const productsSnap = await getDocs(productsRef);
-                        const products = productsSnap.docs.map(prodDoc => ({id: prodDoc.id, ...prodDoc.data()}) as LoanProduct);
-                        return { id: pDoc.id, ...pDoc.data(), products } as Partner;
-                    });
-                    const partnerList = await Promise.all(partnerListPromises);
-                    setPartners(partnerList);
-                }, (error) => console.error("Partner listener error: ", error));
-                unsubscribers.push(unsubPartners);
+                setIsPartner(false);
+                const userDocRef = doc(db, "users", user.uid);
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists()) {
+                    const data = userDocSnap.data();
+                    setAvatarUrlState(data.avatarUrl || user.photoURL || null);
+                    setScoreState(data.score === undefined ? null : data.score);
+                } else {
+                     await setDoc(userDocRef, { 
+                       displayName: user.displayName || `User-${user.uid.substring(0,5)}`, 
+                       email: user.email,
+                       avatarUrl: user.photoURL || null, 
+                       score: null,
+                       createdAt: serverTimestamp()
+                   });
+                   setScoreState(null);
+                   setAvatarUrlState(user.photoURL || null);
+                }
             }
+            setDataLoading(false);
+        };
+    
+        fetchRoleAndInitialData();
+    
+        return () => {
+            isCancelled = true;
+        };
+    }, [user, authInitialized]);
+
+    // Step 3: Set up real-time data listeners based on user's role.
+    useEffect(() => {
+        if (!user || dataLoading) return; // Wait for auth and role check
+
+        const unsubscribers: (() => void)[] = [];
+
+        // Notifications listener (for both roles)
+        const notifsQuery = query(collection(db, "notifications"), where("userId", "==", user.uid));
+        unsubscribers.push(onSnapshot(notifsQuery, (snapshot) => {
+            const allNotifs = snapshot.docs.map(d => ({ 
+                id: d.id, 
+                ...d.data(), 
+                timestamp: d.data().timestamp ? d.data().timestamp.toDate() : new Date() 
+            } as Notification));
+            setNotifications(allNotifs.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime()));
+        }, (error) => console.error("Notifications listener error: ", error)));
+
+        if (isPartner) {
+             // Partner-specific listeners
+            unsubscribers.push(onSnapshot(collection(db, "partners", user.uid, "products"), (snapshot) => {
+                setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
+            }, (error) => console.error("Partner products listener error: ", error)));
+        
+            const qLoanActivity = query(collection(db, "loanActivity"), where("partnerId", "==", user.uid));
+            unsubscribers.push(onSnapshot(qLoanActivity, (snapshot) => {
+                setLoanActivity(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()}) as LoanActivityItem));
+            }, (error) => console.error("Loan activity listener error: ", error)));
+
+            const qApps = query(collection(db, "applications"), where("loan.partnerId", "==", user.uid));
+            unsubscribers.push(onSnapshot(qApps, async (snapshot) => {
+                const appPromises = snapshot.docs.map(async (d) => {
+                    const appData = d.data();
+                    // Avoid fetching user data if it's already there
+                    const existingApp = applications.find(a => a.id === d.id);
+                    if (existingApp?.user) {
+                         return { id: d.id, ...appData, createdAt: appData.createdAt?.toDate(), user: existingApp.user } as Application;
+                    }
+                    const userSnap = await getDoc(doc(db, 'users', appData.userId));
+                    const userData = userSnap.exists() ? {
+                        displayName: userSnap.data()?.displayName || 'Unknown User',
+                        avatarUrl: userSnap.data()?.avatarUrl || null,
+                    } : { displayName: 'Unknown User', avatarUrl: null };
+                    return { id: d.id, ...appData, createdAt: appData.createdAt?.toDate(), user: userData } as Application;
+                });
+                const appsData = await Promise.all(appPromises);
+                setApplications(appsData);
+            }, (error) => console.error("Partner Applications listener error: ", error)));
+
+        } else {
+            // User-specific listeners
+            const qApps = query(collection(db, "applications"), where("userId", "==", user.uid));
+            unsubscribers.push(onSnapshot(qApps, (snapshot) => {
+                setApplications(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application)));
+            }, (error) => console.error("User Applications listener error: ", error)));
+            
+            const qUserLoans = query(collection(db, "loanActivity"), where("userId", "==", user.uid));
+            unsubscribers.push(onSnapshot(qUserLoans, (snapshot) => {
+               setLoanActivity(snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : new Date()}) as LoanActivityItem));
+            }, (error) => console.error("User Loan activity listener error: ", error)));
+
+            unsubscribers.push(onSnapshot(collection(db, "partners"), async (snapshot) => {
+                const partnerListPromises = snapshot.docs.map(async (pDoc) => {
+                    const productsRef = collection(db, "partners", pDoc.id, "products");
+                    const productsSnap = await getDocs(productsRef);
+                    const products = productsSnap.docs.map(prodDoc => ({id: prodDoc.id, ...prodDoc.data()}) as LoanProduct);
+                    return { id: pDoc.id, ...pDoc.data(), products } as Partner;
+                });
+                const partnerList = await Promise.all(partnerListPromises);
+                setPartners(partnerList);
+            }, (error) => console.error("Partner listener error: ", error)));
         }
 
         return () => { 
             unsubscribers.forEach(unsub => unsub());
         }
-    }, [user, isPartner, loading, dataLoading]);
+    }, [user, isPartner, dataLoading, applications]);
     
     const setScore = async (score: number | null) => {
         if (!user || isPartner) return;
@@ -432,7 +441,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             userId: appToSign.userId,
             type: 'info',
             title: 'Funds Disbursed!',
-            message: `Funds for your ${appToSign.loan.name} have been disbursed. You can track your loan in the 'My Loans' section.`,
+            message: `Your funds for your ${appToSign.loan.name} have been disbursed. You can track your loan in the 'My Loans' section.`,
             href: '/dashboard/my-loans'
         })
 
@@ -542,3 +551,5 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
+
+    
