@@ -3,47 +3,10 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Users can only read and write to their own document.
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId;
-    }
-
-    // Partners can be read by anyone, but only written to by authenticated users (future: admin/partner role).
-    match /partners/{partnerId} {
-      allow read: if request.auth != null;
-      // Allow any authenticated user to update for demo purposes.
-      // In production, you'd check for a partner role: request.auth.token.isPartner == true
-      allow write: if request.auth != null; 
-
-      // Products can be managed by authenticated users (future: specific partner)
-      match /products/{productId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null;
-      }
-    }
-
-    // Applications can be read by any authenticated user.
-    // This is needed for the partner dashboard to see all applications.
-    match /applications/{appId} {
-      allow read: if request.auth != null;
-      
-      // Allow create only if the application is for the logged-in user.
-      allow create: if request.auth.uid == request.resource.data.userId;
-
-      // Allow update only if the status is NOT being changed by the user.
-      // A partner role would be needed to change the status.
-      allow update: if request.auth != null && request.resource.data.status == resource.data.status;
-    }
-
-    // Notifications can be read by any authenticated user.
-    // Writes are handled by the backend (or trusted client logic).
-    match /notifications/{notificationId} {
-       allow read: if request.auth != null;
-       allow create: if request.auth != null;
-       allow update: if request.auth.uid == resource.data.userId;
+    // Allow read access to all documents for any user
+    // Restrict write access to authenticated users
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
-
