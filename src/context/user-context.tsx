@@ -130,11 +130,26 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     
     const router = useRouter();
 
+    const clearState = useCallback(() => {
+        setUser(null);
+        setPartner(null);
+        setIsPartner(null);
+        setAvatarUrlState(null);
+        setWalletAddress(null);
+        setApplications([]);
+        setNotifications([]);
+        setLoanActivity([]);
+        setPartnerProducts([]);
+        setScoreState(null);
+        setLoading(true);
+        setDataLoading(true);
+    }, []);
+
     const logout = useCallback(async () => {
         await signOut(auth);
-        // State will be cleared by the onAuthStateChanged listener
+        clearState();
         router.push('/login');
-    }, [router]);
+    }, [router, clearState]);
     
     const deleteAccount = useCallback(async () => {
         const currentUser = auth.currentUser;
@@ -161,7 +176,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     // Auth state listener - determines user and their role
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            setLoading(true);
             if (currentUser) {
                 setUser(currentUser);
                 const partnerDocRef = doc(db, "partners", currentUser.uid);
@@ -169,9 +183,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
                 if (partnerDocSnap.exists()) {
                     setIsPartner(true);
+                    setPartner({ id: partnerDocSnap.id, ...partnerDocSnap.data() } as Partner);
                 } else {
                     const userDocRef = doc(db, "users", currentUser.uid);
-                    const userDocSnap = await getDoc(userDocRef);
+                    let userDocSnap = await getDoc(userDocRef);
                      if (!userDocSnap.exists()) {
                          await setDoc(userDocRef, { 
                            displayName: currentUser.displayName || `User-${currentUser.uid.substring(0,5)}`, 
@@ -179,21 +194,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                            avatarUrl: currentUser.photoURL || null, 
                            createdAt: serverTimestamp()
                        });
+                       userDocSnap = await getDoc(userDocRef);
                     }
                     setIsPartner(false);
+                    setAvatarUrlState(userDocSnap.data()?.avatarUrl || null);
+                    setScoreState(userDocSnap.data()?.score || null);
                 }
             } else {
-                // Clear all state on logout
-                setUser(null);
-                setPartner(null);
-                setIsPartner(null);
-                setAvatarUrlState(null);
-                setWalletAddress(null);
-                setApplications([]);
-                setNotifications([]);
-                setLoanActivity([]);
-                setPartnerProducts([]);
-                setScoreState(null);
+                clearState();
             }
             setLoading(false);
         });
@@ -204,116 +212,105 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [clearState]);
 
-    // Effect for setting up listeners for a regular USER
+    // Data listeners setup
     useEffect(() => {
-        if (!user || isPartner !== false) return;
+        if (loading || isPartner === null || !user) return;
         
         setDataLoading(true);
         const unsubs: (() => void)[] = [];
 
-        // User profile listener
-        unsubs.push(onSnapshot(doc(db, "users", user.uid), (doc) => {
-            if (doc.exists()) {
-                const data = doc.data();
-                setAvatarUrlState(data.avatarUrl || user.photoURL || null);
-                setScoreState(data.score === undefined ? null : data.score);
-                setWalletAddress(data.walletAddress || null);
-            }
-        }));
+        // USER-specific listeners
+        if (isPartner === false) {
+            // User profile listener
+            unsubs.push(onSnapshot(doc(db, "users", user.uid), (doc) => {
+                if (doc.exists()) {
+                    const data = doc.data();
+                    setAvatarUrlState(data.avatarUrl || user.photoURL || null);
+                    setScoreState(data.score === undefined ? null : data.score);
+                    setWalletAddress(data.walletAddress || null);
+                }
+            }));
 
-        // User applications listener
-        const qApps = query(collection(db, "applications"), where("userId", "==", user.uid));
-        unsubs.push(onSnapshot(qApps, (snapshot) => {
-            const userApps = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application));
-            setApplications(userApps.sort((a,b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
-        }));
+            // User applications listener
+            const qApps = query(collection(db, "applications"), where("userId", "==", user.uid));
+            unsubs.push(onSnapshot(qApps, (snapshot) => {
+                const userApps = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate() } as Application));
+                setApplications(userApps.sort((a,b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
+            }));
+            
+            // User loan activity listener
+            const qUserLoans = query(collection(db, "loanActivity"), where("userId", "==", user.uid));
+            unsubs.push(onSnapshot(qUserLoans, (snapshot) => {
+                const userLoans = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate()}) as LoanActivityItem);
+                setLoanActivity(userLoans.sort((a,b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
+            }));
+
+            // All partners listener for users
+            unsubs.push(onSnapshot(collection(db, "partners"), async (snapshot) => {
+                const partnerListPromises = snapshot.docs.map(async (pDoc) => {
+                    const productsRef = collection(db, "partners", pDoc.id, "products");
+                    const productsSnap = await getDocs(productsRef);
+                    const products = productsSnap.docs.map(prodDoc => ({id: prodDoc.id, ...prodDoc.data()}) as LoanProduct);
+                    return { id: pDoc.id, ...pDoc.data(), products } as Partner;
+                });
+                const partnerList = await Promise.all(partnerListPromises);
+                setPartners(partnerList);
+            }));
+
+            // User notifications listener
+            const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid));
+            unsubs.push(onSnapshot(qNotifs, (snapshot) => {
+                const userNotifs = snapshot.docs.map(d => ({ ...d.data(), id: d.id, timestamp: d.data().timestamp?.toDate() } as Notification));
+                setNotifications(userNotifs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
+            }));
+        }
         
-        // User loan activity listener
-        const qUserLoans = query(collection(db, "loanActivity"), where("userId", "==", user.uid));
-        unsubs.push(onSnapshot(qUserLoans, (snapshot) => {
-            const userLoans = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate()}) as LoanActivityItem);
-            setLoanActivity(userLoans.sort((a,b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
-        }));
+        // PARTNER-specific listeners
+        if (isPartner === true) {
+            // Partner products listener
+            unsubs.push(onSnapshot(collection(db, "partners", user.uid, "products"), (snapshot) => {
+                setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
+            }));
+        
+            // Partner loan activity listener
+            const qPartnerLoans = query(collection(db, "loanActivity"), where("partnerId", "==", user.uid));
+            unsubs.push(onSnapshot(qPartnerLoans, (snapshot) => {
+                const pLoans = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate()}) as LoanActivityItem);
+                setLoanActivity(pLoans.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
+            }));
+            
+            // Applications submitted TO this partner
+            const qApps = query(collection(db, "applications"), where("partnerId", "==", user.uid));
+            unsubs.push(onSnapshot(qApps, async (snapshot) => {
+                const appPromises = snapshot.docs.map(async (d) => {
+                    const appData = d.data();
+                    const userSnap = await getDoc(doc(db, 'users', appData.userId));
+                    const userData = userSnap.exists() ? {
+                        displayName: userSnap.data()?.displayName || 'Unknown User',
+                        avatarUrl: userSnap.data()?.avatarUrl || null,
+                        walletAddress: userSnap.data()?.walletAddress || null,
+                    } : { displayName: 'Unknown User', avatarUrl: null, walletAddress: null };
+                    return { id: d.id, ...appData, createdAt: appData.createdAt?.toDate(), user: userData } as Application;
+                });
+                const appsData = await Promise.all(appPromises);
+                setApplications(appsData.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
+            }));
 
-        // All partners listener
-        unsubs.push(onSnapshot(collection(db, "partners"), async (snapshot) => {
-            const partnerListPromises = snapshot.docs.map(async (pDoc) => {
-                const productsRef = collection(db, "partners", pDoc.id, "products");
-                const productsSnap = await getDocs(productsRef);
-                const products = productsSnap.docs.map(prodDoc => ({id: prodDoc.id, ...prodDoc.data()}) as LoanProduct);
-                return { id: pDoc.id, ...pDoc.data(), products } as Partner;
-            });
-            const partnerList = await Promise.all(partnerListPromises);
-            setPartners(partnerList);
-        }));
-
-        // User notifications listener
-        const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid));
-        unsubs.push(onSnapshot(qNotifs, (snapshot) => {
-            const userNotifs = snapshot.docs.map(d => ({ ...d.data(), id: d.id, timestamp: d.data().timestamp?.toDate() } as Notification));
-            setNotifications(userNotifs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
-        }));
+            // Partner notifications listener
+            const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid));
+            unsubs.push(onSnapshot(qNotifs, (snapshot) => {
+                const pNotifs = snapshot.docs.map(d => ({ ...d.data(), id: d.id, timestamp: d.data().timestamp?.toDate() } as Notification));
+                setNotifications(pNotifs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
+            }));
+        }
 
         setDataLoading(false);
 
         return () => { unsubs.forEach(unsub => unsub()) };
 
-    }, [user, isPartner]);
-
-    // Effect for setting up listeners for a PARTNER
-    useEffect(() => {
-        if (!user || isPartner !== true) return;
-
-        setDataLoading(true);
-        const unsubs: (() => void)[] = [];
-
-        // Partner profile listener
-        unsubs.push(onSnapshot(doc(db, "partners", user.uid), (doc) => {
-            if (doc.exists()) setPartner({ id: user.uid, ...doc.data() } as Partner);
-        }));
-
-        // Partner products listener
-        unsubs.push(onSnapshot(collection(db, "partners", user.uid, "products"), (snapshot) => {
-            setPartnerProducts(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as LoanProduct));
-        }));
-    
-        // Partner loan activity listener
-        const qPartnerLoans = query(collection(db, "loanActivity"), where("partnerId", "==", user.uid));
-        unsubs.push(onSnapshot(qPartnerLoans, (snapshot) => {
-            const pLoans = snapshot.docs.map(d => ({...d.data(), id: d.id, createdAt: d.data().createdAt?.toDate()}) as LoanActivityItem);
-            setLoanActivity(pLoans.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
-        }));
-        
-        // Applications submitted TO this partner
-        const qApps = query(collection(db, "applications"), where("partnerId", "==", user.uid));
-        unsubs.push(onSnapshot(qApps, async (snapshot) => {
-            const appPromises = snapshot.docs.map(async (d) => {
-                const appData = d.data();
-                const userSnap = await getDoc(doc(db, 'users', appData.userId));
-                const userData = userSnap.exists() ? {
-                    displayName: userSnap.data()?.displayName || 'Unknown User',
-                    avatarUrl: userSnap.data()?.avatarUrl || null,
-                    walletAddress: userSnap.data()?.walletAddress || null,
-                } : { displayName: 'Unknown User', avatarUrl: null, walletAddress: null };
-                return { id: d.id, ...appData, createdAt: appData.createdAt?.toDate(), user: userData } as Application;
-            });
-            const appsData = await Promise.all(appPromises);
-            setApplications(appsData.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)));
-        }));
-
-        // Partner notifications listener
-        const qNotifs = query(collection(db, "notifications"), where("userId", "==", user.uid));
-        unsubs.push(onSnapshot(qNotifs, (snapshot) => {
-            const pNotifs = snapshot.docs.map(d => ({ ...d.data(), id: d.id, timestamp: d.data().timestamp?.toDate() } as Notification));
-            setNotifications(pNotifs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0)));
-        }));
-
-        setDataLoading(false);
-
-        return () => { unsubs.forEach(unsub => unsub()); };
-    }, [user, isPartner]);
+    }, [user, isPartner, loading]);
 
     // Redirection logic
     useEffect(() => {
@@ -375,6 +372,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             score,
             userId: user.uid,
             partnerId: targetPartner.id, // Correctly set the partner's ID
+            user: {
+                displayName: user.displayName || 'Anonymous',
+                avatarUrl: avatarUrl,
+                walletAddress: walletAddress,
+            },
             createdAt: serverTimestamp()
         };
         await addDoc(collection(db, "applications"), newApp);
@@ -387,7 +389,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             message: `${user.displayName || 'A user'} applied for $${newApp.amount.toLocaleString()} (${newApp.loan.name}).`,
             href: `/dashboard/partner-admin`
         });
-    }, [user, score, partners, addNotification]);
+    }, [user, score, partners, addNotification, avatarUrl, walletAddress]);
     
      const updateApplicationStatus = useCallback(async (appId: string, status: 'Approved' | 'Denied') => {
         const appRef = doc(db, "applications", appId);
@@ -539,5 +541,3 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         </UserContext.Provider>
     );
 };
-
-    

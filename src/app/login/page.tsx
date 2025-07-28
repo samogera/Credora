@@ -15,7 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 
 export default function LoginPage() {
-  const { loading, emailLogin, googleLogin } = useContext(UserContext);
+  const { loading, emailLogin } = useContext(UserContext);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,20 +35,6 @@ export default function LoginPage() {
             variant: 'destructive',
             title: 'Login Failed',
             description: error.message || 'Please check your credentials and try again.'
-        });
-        setIsSubmitting(false);
-    }
-  }
-
-  const handleGoogleLogin = async () => {
-    setIsSubmitting(true);
-    try {
-        await googleLogin();
-    } catch(error: any) {
-        toast({
-            variant: 'destructive',
-            title: 'Login Failed',
-            description: error.message || 'Could not sign in with Google.'
         });
         setIsSubmitting(false);
     }
@@ -86,16 +72,6 @@ export default function LoginPage() {
                 </div>
                  <Button className="w-full font-semibold" type="submit" disabled={isLoading}>
                     {isLoading ? "Logging in..." : "Login"}
-                 </Button>
-                 
-                 <div className="relative my-4">
-                    <Separator />
-                    <span className="absolute left-1/2 -translate-x-1/2 top-[-10px] bg-card px-2 text-xs text-muted-foreground">OR</span>
-                 </div>
-
-                <Button variant="outline" className="w-full font-semibold" onClick={handleGoogleLogin} disabled={isLoading} type="button">
-                    <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 21.2 172.9 65.6l-63.5 63.5C330.7 99.8 291.9 80 248 80c-82.8 0-150.5 67.7-150.5 150.5S165.2 431.5 248 431.5c97.2 0 130.3-72.9 135.2-109.9H248v-85.3h236.1c2.3 12.7 3.9 26.9 3.9 41.4z"></path></svg>
-                    Sign in with Google
                  </Button>
             </CardContent>
           </form>
