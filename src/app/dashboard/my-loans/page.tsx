@@ -30,7 +30,7 @@ export default function MyLoansPage() {
     const userLoans = loanActivity.filter(loan => loan.userId === user?.uid);
 
     const handleRepayClick = (loan: LoanActivityItem) => {
-        if (!loan.sorobanLoanId) {
+        if (loan.sorobanLoanId === undefined) {
              toast({
                 title: "Repayment Error",
                 description: `This loan does not have a valid on-chain ID. Please contact support.`,
@@ -46,7 +46,7 @@ export default function MyLoansPage() {
     }
 
     const handlePayment = async () => {
-        if (!selectedLoan || !repaymentAmount || Number(repaymentAmount) <= 0 || !selectedLoan.sorobanLoanId) return;
+        if (!selectedLoan || !repaymentAmount || Number(repaymentAmount) <= 0 || selectedLoan.sorobanLoanId === undefined) return;
         
         const loanIdToRepay = selectedLoan.sorobanLoanId;
         
@@ -184,7 +184,7 @@ export default function MyLoansPage() {
                             <Input 
                                 id="repayment-amount"
                                 type="number"
-                                value={repaymentAmount}
+                                value={repaymentAmount || ''}
                                 onChange={(e) => setRepaymentAmount(e.target.value)}
                                 max={selectedLoan ? (selectedLoan.amount + (selectedLoan.interestAccrued || 0) - (selectedLoan.repaid || 0)).toFixed(2) : '0'}
                                 min="0.01"
