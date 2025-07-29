@@ -30,25 +30,25 @@ export default function MyLoansPage() {
     const userLoans = loanActivity.filter(loan => loan.userId === user?.uid);
 
     const handleRepayClick = (loan: LoanActivityItem) => {
-        const interest = loan.interestAccrued || 0;
-        const repaid = loan.repaid || 0;
-        const remaining = loan.amount + interest - repaid;
-        setRepaymentAmount(remaining > 0 ? remaining.toFixed(2) : '0.00');
-        setSelectedLoan(loan);
-    }
-
-    const handlePayment = async () => {
-        if (!selectedLoan || !repaymentAmount || Number(repaymentAmount) <= 0) return;
-        
-        const loanIdToRepay = selectedLoan.sorobanLoanId;
-        if (typeof loanIdToRepay !== 'number' || isNaN(loanIdToRepay) || loanIdToRepay <= 0) {
-            toast({
+        if (!loan.sorobanLoanId) {
+             toast({
                 title: "Repayment Error",
-                description: `The loan ID is invalid or missing. Please contact support. Provided ID: ${loanIdToRepay}`,
+                description: `This loan does not have a valid on-chain ID. Please contact support.`,
                 variant: 'destructive',
             });
             return;
         }
+        setSelectedLoan(loan);
+        const interest = loan.interestAccrued || 0;
+        const repaid = loan.repaid || 0;
+        const remaining = loan.amount + interest - repaid;
+        setRepaymentAmount(remaining > 0 ? remaining.toFixed(2) : '0.00');
+    }
+
+    const handlePayment = async () => {
+        if (!selectedLoan || !repaymentAmount || Number(repaymentAmount) <= 0 || !selectedLoan.sorobanLoanId) return;
+        
+        const loanIdToRepay = selectedLoan.sorobanLoanId;
         
         setIsRepaying(true);
         toast({
@@ -86,6 +86,14 @@ export default function MyLoansPage() {
         if (lowerStatus === 'active') return 'default';
         if (lowerStatus === 'repaid' || lowerStatus === 'paid off') return 'secondary';
         return 'destructive';
+    }
+    
+    const getStatusBadgeColor = (status: string) => {
+        const lowerStatus = status.toLowerCase();
+        if (lowerStatus === 'active') return 'bg-blue-500 hover:bg-blue-600';
+        if (lowerStatus === 'repaid' || lowerStatus === 'paid off') return 'bg-green-500 hover:bg-green-600';
+        if (lowerStatus === 'delinquent') return 'bg-yellow-500 text-black hover:bg-yellow-600';
+        return '';
     }
 
     const formatCurrency = (value: number) => {
@@ -137,7 +145,7 @@ export default function MyLoansPage() {
                                                 <p className="text-xs text-muted-foreground">{formatCurrency(repaid)} / {formatCurrency(totalToRepay)}</p>
                                             </TableCell>
                                             <TableCell className="text-center">
-                                                <Badge variant={getStatusVariant(loan.status)}>{isPaidOff ? 'Paid Off' : 'Active'}</Badge>
+                                                <Badge variant={getStatusVariant(loan.status)} className={getStatusBadgeColor(loan.status)}>{isPaidOff ? 'Paid Off' : 'Active'}</Badge>
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <Button size="sm" onClick={() => handleRepayClick(loan)} disabled={isPaidOff}>

@@ -13,6 +13,7 @@ import { UserContext } from "@/context/user-context";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
+import Loading from "../dashboard/loading";
 
 export default function SignupPage() {
   const { user, loading, emailSignup } = useContext(UserContext);
@@ -54,6 +55,11 @@ export default function SignupPage() {
   }
 
   const isLoading = loading || isSubmitting;
+
+  if (isLoading) {
+    return <Loading />;
+  }
+
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
