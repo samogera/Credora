@@ -23,7 +23,7 @@ export interface Loan {
   repaid: number;
   interestRate: number; // Annual percentage rate
   term: number; // in months
-  status: 'active' | 'repaid' | 'defaulted';
+  status: 'Active' | 'Paid Off' | 'Delinquent' | 'active' | 'repaid' | 'defaulted';
 }
 
 // Mock Data Store (Simulates On-Chain State)
@@ -113,15 +113,17 @@ export const repayLoan = async (loanId: number, amount: number): Promise<TxHash>
 
   const rate = loan.interestRate / 100 / 12; // monthly rate
   const principal = loan.amount;
-  const totalToRepay = loan.term > 0 
+  const totalRepayment = loan.term > 0 
     ? (principal * rate * (Math.pow(1 + rate, loan.term))) / (Math.pow(1 + rate, loan.term) - 1) * loan.term
     : principal;
-  
+    
+  const totalInterest = totalRepayment > principal ? totalRepayment - principal : 0;
+
   loan.repaid += amount;
   
-  if (loan.repaid >= totalToRepay) {
-    loan.status = 'repaid';
-    loan.repaid = totalToRepay; 
+  if (loan.repaid >= (principal + totalInterest)) {
+    loan.status = 'Paid Off';
+    loan.repaid = principal + totalInterest; 
   }
   
   return `mock-tx-hash-repay-${loanId}`;

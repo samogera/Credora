@@ -513,7 +513,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             const term = appData.loan.term;
             const principal = appData.amount;
             const totalRepayment = term > 0 ? (principal * rate * (Math.pow(1 + rate, term))) / (Math.pow(1 + rate, term) - 1) * term : principal;
-            const totalInterest = totalRepayment - principal;
+            const totalInterest = totalRepayment > principal ? totalRepayment - principal : 0;
 
             const loanActivityData: Omit<LoanActivityItem, 'id' | 'createdAt'> = {
                 sorobanLoanId: loanId,

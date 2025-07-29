@@ -33,7 +33,7 @@ export default function MyLoansPage() {
         const interest = loan.interestAccrued || 0;
         const repaid = loan.repaid || 0;
         const remaining = loan.amount + interest - repaid;
-        setRepaymentAmount(remaining > 0 ? remaining : 0);
+        setRepaymentAmount(remaining > 0 ? remaining.toFixed(2) : '0.00');
         setSelectedLoan(loan);
     }
 
@@ -178,15 +178,16 @@ export default function MyLoansPage() {
                                 type="number"
                                 value={repaymentAmount}
                                 onChange={(e) => setRepaymentAmount(e.target.value)}
-                                max={selectedLoan ? selectedLoan.amount + (selectedLoan.interestAccrued || 0) - (selectedLoan.repaid || 0) : 0}
-                                min="0"
+                                max={selectedLoan ? (selectedLoan.amount + (selectedLoan.interestAccrued || 0) - (selectedLoan.repaid || 0)).toFixed(2) : '0'}
+                                min="0.01"
+                                step="0.01"
                             />
                         </div>
                     </div>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setSelectedLoan(null)} disabled={isRepaying}>Cancel</Button>
                         <Button onClick={handlePayment} disabled={isRepaying || !repaymentAmount || Number(repaymentAmount) <= 0}>
-                            {isRepaying ? 'Processing...' : `Pay ${formatCurrency(Number(repaymentAmount))}`}
+                            {isRepaying ? 'Processing...' : `Pay ${formatCurrency(Number(repaymentAmount) || 0)}`}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
