@@ -20,9 +20,10 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { repayLoan } from '@/lib/soroban-mock';
+import Loading from '../loading';
 
 export default function MyLoansPage() {
-    const { loanActivity, user, refreshLoanActivity } = useContext(UserContext);
+    const { loanActivity, user, refreshLoanActivity, dataLoading } = useContext(UserContext);
     const [selectedLoan, setSelectedLoan] = useState<LoanActivityItem | null>(null);
     const [isRepaying, setIsRepaying] = useState(false);
     const [repaymentAmount, setRepaymentAmount] = useState<number | string>('');
@@ -30,7 +31,7 @@ export default function MyLoansPage() {
     const userLoans = loanActivity.filter(loan => loan.userId === user?.uid);
 
     const handleRepayClick = (loan: LoanActivityItem) => {
-        if (loan.sorobanLoanId === undefined) {
+        if (loan.sorobanLoanId === undefined || loan.sorobanLoanId === null || isNaN(loan.sorobanLoanId)) {
              toast({
                 title: "Repayment Error",
                 description: `This loan does not have a valid on-chain ID. Please contact support.`,
@@ -46,7 +47,14 @@ export default function MyLoansPage() {
     }
 
     const handlePayment = async () => {
-        if (!selectedLoan || !repaymentAmount || Number(repaymentAmount) <= 0 || selectedLoan.sorobanLoanId === undefined) return;
+        if (!selectedLoan || typeof selectedLoan.sorobanLoanId !== 'number' || isNaN(selectedLoan.sorobanLoanId)) {
+             toast({
+                title: "Repayment Failed",
+                description: "Selected loan has an invalid ID. Cannot proceed.",
+                variant: 'destructive',
+            });
+            return;
+        }
         
         const loanIdToRepay = selectedLoan.sorobanLoanId;
         
@@ -85,6 +93,7 @@ export default function MyLoansPage() {
         const lowerStatus = status.toLowerCase();
         if (lowerStatus === 'active') return 'default';
         if (lowerStatus === 'repaid' || lowerStatus === 'paid off') return 'secondary';
+        if (lowerStatus === 'delinquent') return 'destructive';
         return 'destructive';
     }
     
@@ -97,7 +106,11 @@ export default function MyLoansPage() {
     }
 
     const formatCurrency = (value: number) => {
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0);
+    }
+    
+    if (dataLoading) {
+        return <Loading />
     }
 
     return (
@@ -131,7 +144,7 @@ export default function MyLoansPage() {
                                     const totalToRepay = loan.amount + interest;
                                     const repaid = loan.repaid || 0;
                                     const progress = totalToRepay > 0 ? (repaid / totalToRepay) * 100 : 0;
-                                    const isPaidOff = loan.status.toLowerCase() === 'repaid' || loan.status.toLowerCase() === 'paid off';
+                                    const isPaidOff = (loan.status.toLowerCase() === 'repaid' || loan.status.toLowerCase() === 'paid off') || repaid >= totalToRepay;
                                     return (
                                         <TableRow key={loan.id}>
                                             <TableCell className="font-medium">{loan.partnerName}</TableCell>
@@ -145,7 +158,7 @@ export default function MyLoansPage() {
                                                 <p className="text-xs text-muted-foreground">{formatCurrency(repaid)} / {formatCurrency(totalToRepay)}</p>
                                             </TableCell>
                                             <TableCell className="text-center">
-                                                <Badge variant={getStatusVariant(loan.status)} className={getStatusBadgeColor(loan.status)}>{isPaidOff ? 'Paid Off' : 'Active'}</Badge>
+                                                <Badge variant={getStatusVariant(loan.status)} className={getStatusBadgeColor(isPaidOff ? 'Paid Off' : loan.status)}>{isPaidOff ? 'Paid Off' : 'Active'}</Badge>
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <Button size="sm" onClick={() => handleRepayClick(loan)} disabled={isPaidOff}>
@@ -176,7 +189,7 @@ export default function MyLoansPage() {
                        <div className="grid gap-2 text-center">
                             <p className="text-sm text-muted-foreground">Amount Remaining</p>
                             <p className="font-bold text-primary text-2xl">
-                                {selectedLoan ? formatCurrency(selectedLoan.amount + (selectedLoan.interestAccrued || 0) - (selectedLoan.repaid || 0)) : '$0.00'}
+                                {formatCurrency(selectedLoan ? (selectedLoan.amount + (selectedLoan.interestAccrued || 0) - (selectedLoan.repaid || 0)) : 0)}
                             </p>
                        </div>
                         <div className="space-y-2">
